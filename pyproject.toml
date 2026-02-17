@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trading-deportivo"
+version = "0.1.0"
+description = "Football prediction model using Dixon-Coles with xG data"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "pandas",
+    "understatapi",
+    "requests",
+    "python-dotenv",
+    "tqdm",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+ps3838 = ["PS3838"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["trading_deportivo*"]
