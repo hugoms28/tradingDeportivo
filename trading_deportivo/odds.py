@@ -3,6 +3,7 @@
 Integracion con PS3838 (Pinnacle) y alertas Telegram.
 """
 import base64
+from datetime import datetime, timedelta
 
 import requests
 
@@ -79,20 +80,38 @@ def fetch_ps3838_odds(league):
             send_telegram_alert(msg)
             return None, None, msg
 
-        event_names = {}
+        all_open = []
         for league_data in fixtures["league"]:
             for event in league_data.get("events", []):
                 if event.get("status") == "O":
-                    event_names[event["id"]] = {
+                    all_open.append({
+                        "id": event["id"],
                         "home_ps": event.get("home", ""),
                         "away_ps": event.get("away", ""),
                         "starts": event.get("starts", ""),
-                    }
+                    })
 
-        if not event_names:
+        if not all_open:
             msg = f"PS3838: No hay partidos abiertos para {league}"
             send_telegram_alert(msg)
             return None, None, msg
+
+        # --- Filter: only next matchday (first cluster of dates within 4 days) ---
+        for ev in all_open:
+            try:
+                ev["_dt"] = datetime.fromisoformat(ev["starts"].replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                ev["_dt"] = datetime.max
+
+        all_open.sort(key=lambda e: e["_dt"])
+        first_date = all_open[0]["_dt"].date()
+        cutoff = first_date + timedelta(days=4)
+        all_open = [e for e in all_open if e["_dt"].date() <= cutoff]
+
+        event_names = {
+            e["id"]: {"home_ps": e["home_ps"], "away_ps": e["away_ps"], "starts": e["starts"]}
+            for e in all_open
+        }
 
         # --- CALL 2: Odds bulk ---
         odds_data = _ps3838_request("/v3/odds", {

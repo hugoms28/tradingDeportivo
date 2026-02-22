@@ -96,11 +96,12 @@ SERIE_A_MAP = {
     "AC Milan": "Milan",
     "Inter": "Inter",
     "Internazionale": "Inter",
-    "AS Roma": "Roma",
     "Roma": "Roma",
+    "AS Roma": "Roma",
     "Hellas Verona": "Verona",
     "Parma Calcio 1913": "Parma",
-    "Parma": "Parma",
+    "Cremonese": "Cremonese",
+    "Sassuolo": "Sassuolo",
     # Nombres iguales: Juventus, Napoli, Lazio, Atalanta, Fiorentina,
     # Bologna, Torino, Udinese, Lecce, Genoa, Cagliari, Como, Pisa, Spezia
 }
@@ -332,7 +333,7 @@ ODDS_API_SPORT_KEYS = {
 # PS3838 (PINNACLE) → UNDERSTAT
 # =============================================================================
 
-# League IDs de PS3838 para nuestras 5 ligas
+# League IDs de PS3838 para nuestras ligas
 PS3838_LEAGUE_IDS = {
     "EPL": 1980,
     "La_Liga": 2196,
@@ -465,8 +466,8 @@ PS3838_SERIE_A_MAP = {
     "AC Milan": "AC Milan",
     "Milan": "AC Milan",
     "Juventus": "Juventus",
-    "AS Roma": "AS Roma",
-    "Roma": "AS Roma",
+    "AS Roma": "Roma",
+    "Roma": "Roma",
     "Lazio": "Lazio",
     "SS Lazio": "Lazio",
     "Atalanta": "Atalanta",
@@ -487,16 +488,20 @@ PS3838_SERIE_A_MAP = {
     "US Lecce": "Lecce",
     "Como": "Como",
     "Como 1907": "Como",
-    "Parma": "Parma",
-    "Parma Calcio": "Parma",
+    "Parma": "Parma Calcio 1913",
+    "Parma Calcio": "Parma Calcio 1913",
+    "Parma Calcio 1913": "Parma Calcio 1913",
     "Hellas Verona": "Hellas Verona",
     "Verona": "Hellas Verona",
+    "Hellas Verona FC": "Hellas Verona",
     "Pisa": "Pisa",
     "AC Pisa": "Pisa",
     "Spezia": "Spezia",
     "Spezia Calcio": "Spezia",
     "Cremonese": "Cremonese",
+    "US Cremonese": "Cremonese",
     "Sassuolo": "Sassuolo",
+    "US Sassuolo": "Sassuolo",
 }
 
 # Ligue 1 2025-26 (PS3838 → Understat)

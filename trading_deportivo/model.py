@@ -2,6 +2,7 @@
 """
 Modelo Dixon-Coles con xG: entrenamiento, prediccion y persistencia.
 """
+import math
 import os
 import pickle
 from datetime import datetime
@@ -46,7 +47,8 @@ def time_decay_weight(match_date, reference_date, half_life_days=60):
 def dc_xg_loss(params, match_xg, teams, reg=0.0, use_decay=False, half_life=60, reference_date=None):
     """
     Funcion de perdida para Dixon-Coles con xG.
-    Minimiza el error cuadratico entre lambda/mu predichos y xG observado.
+    Minimiza la log-verosimilitud negativa de Poisson: -(xg*log(lambda) - lambda).
+    Estadisticamente optimo para datos que siguen distribucion de Poisson.
     """
     n_teams = len(teams)
     team_idx = {team: i for i, team in enumerate(teams)}
@@ -58,7 +60,7 @@ def dc_xg_loss(params, match_xg, teams, reg=0.0, use_decay=False, half_life=60, 
     if use_decay and reference_date is None and "datetime" in match_xg.columns:
         reference_date = match_xg["datetime"].max()
 
-    total_error = 0.0
+    total_nll = 0.0
 
     for _, row in match_xg.iterrows():
         home_i = team_idx[row["home_team"]]
@@ -70,19 +72,21 @@ def dc_xg_loss(params, match_xg, teams, reg=0.0, use_decay=False, half_life=60, 
         lambda_home = alphas[home_i] * betas[away_i] * gamma
         mu_away = alphas[away_i] * betas[home_i]
 
-        error = (lambda_home - xg_home) ** 2 + (mu_away - xg_away) ** 2
+        # Poisson NLL: -(k * log(lambda) - lambda), con clip para evitar log(0)
+        nll = -(xg_home * np.log(lambda_home + 1e-10) - lambda_home) \
+              -(xg_away * np.log(mu_away    + 1e-10) - mu_away)
 
         if use_decay and "datetime" in match_xg.columns and reference_date is not None:
             weight = time_decay_weight(row["datetime"], reference_date, half_life)
-            error *= weight
+            nll *= weight
 
-        total_error += error
+        total_nll += nll
 
     if reg > 0:
         penalty = reg * (np.sum((alphas - 1) ** 2) + np.sum((betas - 1) ** 2))
-        total_error += penalty
+        total_nll += penalty
 
-    return total_error
+    return total_nll
 
 
 def estimate_rho(match_xg, alphas, betas, gamma, teams, raw_matches):
@@ -234,7 +238,7 @@ def fit_dixon_coles_xg(match_xg, raw_matches=None, max_iter=500, reg=0.001,
         "rho": rho,
         "converged": result.success,
         "message": result.message,
-        "mse": result.fun / len(match_xg),
+        "avg_nll": result.fun / len(match_xg),
         "reg": reg,
         "use_decay": use_decay,
         "half_life": half_life if use_decay else None
@@ -303,62 +307,69 @@ def predict_match(home_team, away_team, model, max_goals=DEFAULT_MAX_GOALS):
     ou_lines = [0.5, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5, 3.75, 4, 4.25, 4.5, 4.75]
     ou_probs = {}
 
-    for line in ou_lines:
-        frac = round(line % 1, 2)
-
-        if frac == 0.5:
-            p_over = sum(p for g, p in total_goals_prob.items() if g > line)
-            ou_probs[line] = {"over": p_over, "under": 1.0 - p_over}
-        elif frac == 0.0:
-            n = int(line)
+    def _ou_base(line_val):
+        """Compute over/under probs for a whole or half O/U line."""
+        if line_val == int(line_val):  # whole line (push possible)
+            n = int(line_val)
             p_over = sum(p for g, p in total_goals_prob.items() if g > n)
+            p_push = total_goals_prob.get(n, 0)
             p_under = sum(p for g, p in total_goals_prob.items() if g < n)
-            ou_probs[line] = {"over": p_over, "under": p_under}
-        elif frac == 0.25:
-            pivot = int(line)
-            p_exact = total_goals_prob.get(pivot, 0)
-            p_over = sum(p for g, p in total_goals_prob.items() if g > pivot) + 0.5 * p_exact
-            p_under = sum(p for g, p in total_goals_prob.items() if g < pivot) + 0.5 * p_exact
-            ou_probs[line] = {"over": p_over, "under": p_under}
-        elif frac == 0.75:
-            pivot = int(line) + 1
-            p_exact = total_goals_prob.get(pivot, 0)
-            p_over = sum(p for g, p in total_goals_prob.items() if g > pivot) + 0.5 * p_exact
-            p_under = sum(p for g, p in total_goals_prob.items() if g < pivot) + 0.5 * p_exact
-            ou_probs[line] = {"over": p_over, "under": p_under}
+            return {"over": p_over + 0.5 * p_push, "under": p_under + 0.5 * p_push}
+        else:  # half line (no push)
+            p_over = sum(p for g, p in total_goals_prob.items() if g > line_val)
+            p_under = sum(p for g, p in total_goals_prob.items() if g < line_val)
+            return {"over": p_over, "under": p_under}
+
+    for line in ou_lines:
+        frac = round(line % 0.5, 2)
+        if frac == 0:
+            # Whole or half line — compute directly
+            ou_probs[line] = _ou_base(line)
+        else:
+            # Quarter line — average of two adjacent lines
+            L1 = round(line - 0.25, 2)
+            L2 = round(line + 0.25, 2)
+            p1 = _ou_base(L1)
+            p2 = _ou_base(L2)
+            ou_probs[line] = {
+                "over": 0.5 * p1["over"] + 0.5 * p2["over"],
+                "under": 0.5 * p1["under"] + 0.5 * p2["under"],
+            }
 
     # Asian Handicap
     ah_lines = [-3.5, -3.25, -3, -2.75, -2.5, -2.25, -2, -1.75, -1.5, -1.25, -1, -0.75, -0.5, -0.25,
                 0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.25, 3.5]
     ah_probs = {}
 
+    def _ah_base(line_val):
+        """Compute effective home/away probs for a whole or half AH line."""
+        T = -line_val
+        if T == int(T):  # whole line (push possible)
+            T = int(T)
+            p_h = sum(p for d, p in goal_diff_prob.items() if d > T)
+            p_push = goal_diff_prob.get(T, 0)
+            p_a = sum(p for d, p in goal_diff_prob.items() if d < T)
+            return {"home": p_h + 0.5 * p_push, "away": p_a + 0.5 * p_push}
+        else:  # half line (no push)
+            p_h = sum(p for d, p in goal_diff_prob.items() if d > T)
+            p_a = sum(p for d, p in goal_diff_prob.items() if d < T)
+            return {"home": p_h, "away": p_a}
+
     for line in ah_lines:
-        threshold = -line
-        q = round(line * 4) % 4
-
-        if q == 0:
-            t = int(threshold)
-            p_home = sum(p for d, p in goal_diff_prob.items() if d > t)
-            p_push = goal_diff_prob.get(t, 0)
-            p_away = sum(p for d, p in goal_diff_prob.items() if d < t)
-            ah_probs[line] = {"home": p_home, "away": p_away, "push": p_push}
-        elif q == 2:
-            p_home = sum(p for d, p in goal_diff_prob.items() if d > threshold)
-            p_away = sum(p for d, p in goal_diff_prob.items() if d < threshold)
-            ah_probs[line] = {"home": p_home, "away": p_away}
-        elif q == 1 or q == 3:
-            lower = int(threshold)
-            p_exact_lower = goal_diff_prob.get(lower, 0)
-            p_exact_upper = goal_diff_prob.get(lower + 1, 0)
-
-            if q == 1:
-                p_home = sum(p for d, p in goal_diff_prob.items() if d > lower) + 0.5 * p_exact_lower
-                p_away = sum(p for d, p in goal_diff_prob.items() if d < lower) + 0.5 * p_exact_lower
-            else:
-                p_home = sum(p for d, p in goal_diff_prob.items() if d > lower + 1) + 0.5 * p_exact_upper
-                p_away = sum(p for d, p in goal_diff_prob.items() if d < lower + 1) + 0.5 * p_exact_upper
-
-            ah_probs[line] = {"home": p_home, "away": p_away}
+        frac = round(abs(line) % 0.5, 2)
+        if frac == 0:
+            # Whole or half line — compute directly
+            ah_probs[line] = _ah_base(line)
+        else:
+            # Quarter line — average of two adjacent lines
+            L1 = round(line - 0.25, 2)
+            L2 = round(line + 0.25, 2)
+            p1 = _ah_base(L1)
+            p2 = _ah_base(L2)
+            ah_probs[line] = {
+                "home": 0.5 * p1["home"] + 0.5 * p2["home"],
+                "away": 0.5 * p1["away"] + 0.5 * p2["away"],
+            }
 
     max_idx = np.unravel_index(score_matrix.argmax(), score_matrix.shape)
     most_likely_score = f"{max_idx[0]}-{max_idx[1]}"
@@ -566,6 +577,7 @@ def predict_matchday(matches, model, odds=None, min_edge=0.03):
                 # Metadatos PS3838
                 row["_event_id"] = match_odds.get("_event_id")
                 row["_line_id"] = match_odds.get("_line_id")
+                row["_starts"] = match_odds.get("_starts")
 
             predictions.append(row)
 

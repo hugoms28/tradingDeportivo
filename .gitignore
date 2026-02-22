@@ -24,3 +24,14 @@ bets_history.csv
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+
+# Base de datos SQLite
+*.db
+
+# Claude Code
+.claude/
