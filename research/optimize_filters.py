@@ -35,7 +35,7 @@ BANKROLL0     = 500.0        # por liga
 MIN_N         = 50           # minimo apuestas para relevancia estadistica
 
 EDGE_STEPS    = [i / 100.0 for i in range(0, 26)]           # 0% a 25% (26 valores)
-ODDS_CAPS     = [round(1.20 + 0.20 * i, 2) for i in range(20)]  # 1.20 a 5.00 (20 valores)
+ODDS_CAPS     = [round(2.00 + 0.10 * i, 2) for i in range(11)]  # 2.00 a 3.00 (paso 0.10)
 
 OPP_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "opportunities.json")
 GRID_FILE   = os.path.join(os.path.dirname(os.path.abspath(__file__)), "grid_results.json")

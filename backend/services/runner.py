@@ -31,7 +31,7 @@ EDGE_THRESHOLDS = {
 # ─── Odds caps per market type ───────────────────────────────────────────────
 # Cuotas maximas: por encima de estos valores el P&L es consistentemente negativo.
 ODDS_CAPS = {
-    "ah":  2.40,    # AH odds > 2.40 no existen en practica; actua como safety filter
+    "ah":  2.30,    # AH odds > 2.30 degradan el yield (sweet spot refinado paso 0.10)
     "ou":  2.00,    # OU odds > 2.00 pierden sistematicamente (longshots de goles)
     "1x2": 3.00,    # 1X2 odds > 3.00 pierden sistematicamente (sobreestimacion visitantes)
 }
