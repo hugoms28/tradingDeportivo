@@ -217,8 +217,8 @@ Top 5 combinaciones por P&L:
 | 14% | 3.00 | 71 | 50.7% | €+243 | +9.7% | +13.0% |
 | 13% | 3.00 | 79 | 50.6% | €+219 | +8.8% | +10.4% |
 | 12% | 3.00 | 86 | 50.0% | €+189 | +7.6% | +8.4% |
-| 16% | 3.00 | 59 | 49.2% | €+164 | +6.6% | +10.5% |
-| 15% | 3.00 | 63 | 49.2% | €+151 | +6.0% | +9.2% |
+| 13% | 2.70 | 60 | 55.0% | €+182 | +7.3% | +11.3% |
+| 14% | 2.70 | 53 | 54.7% | €+176 | +7.0% | +12.5% |
 
 ### Mercado: OU25
 **Sweet spot**: edge ≥ 13%, odds ≤ 2.00
@@ -234,17 +234,17 @@ Top 5 combinaciones por P&L:
 | 14% | 2.00 | 69 | 59.4% | €+109 | +4.4% | +6.2% |
 
 ### Mercado: AH
-**Sweet spot**: edge ≥ 11%, odds ≤ 2.40
+**Sweet spot**: edge ≥ 11%, odds ≤ 2.30
 
 Top 5 combinaciones por P&L:
 
 | Edge≥ | Odds≤ | N | Win% | P&L | ROI | Yield |
 |------:|------:|--:|-----:|----:|----:|------:|
+| 11% | 2.30 | 234 | 48.3% | €+327 | +13.1% | +5.2% |
 | 11% | 2.40 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
+| 11% | 2.50 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
 | 11% | 2.60 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 2.80 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 3.00 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 3.20 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
+| 11% | 2.70 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
 
 ---
 
@@ -256,89 +256,7 @@ Top 5 combinaciones por P&L:
 |---------|----------:|---------:|--:|----:|------:|
 | 1X2 | 14% | 3.00 | 71 | €+243 | +13.0% |
 | OU25 | 13% | 2.00 | 79 | €+163 | +8.0% |
-| AH | 11% | 2.40 | 235 | €+310 | +4.9% |
-
-> **Limitacion**: muestra ~150 partidos por liga en test set. Continuar
-> validando en produccion matchweek a matchweek antes de ajustar definitivamente.
-
-*Script: `research/optimize_filters.py`. Grid completo: `research/grid_results.json`.*
-
-
----
-
-## 6. Optimizacion de Filtros de Ejecucion
-
-**Fecha**: 2026-02-23  
-**Objetivo**: Encontrar el par (edge_min, odds_cap) optimo por mercado que  
-maximiza el P&L real vs Pinnacle closing con muestra >= 50 apuestas.  
-
-**Grid**: edge_min 0–25% (paso 1%) × odds_cap 1.20–5.00 (paso 0.20)  
-**Mercados**: 1X2, O/U 2.5, Asian Handicap  
-**Datos**: Pinnacle closing (football-data.co.uk), test set oct 2025 – feb 2026  
-**Universo total**: 4225 oportunidades (EPL, La_Liga, Bundesliga, Serie_A, Ligue_1)
-
-| Mercado | N opps | Win% real |
-|---------|-------:|----------:|
-| 1X2_A | 605 | 29.4% |
-| 1X2_D | 605 | 26.3% |
-| 1X2_H | 605 | 44.3% |
-| AH_A | 606 | 44.6% |
-| AH_H | 606 | 47.7% |
-| OU25_O | 599 | 51.8% |
-| OU25_U | 599 | 48.2% |
-
----
-
-### Mercado: 1X2
-**Sweet spot**: edge ≥ 14%, odds ≤ 3.00
-
-Top 5 combinaciones por P&L:
-
-| Edge≥ | Odds≤ | N | Win% | P&L | ROI | Yield |
-|------:|------:|--:|-----:|----:|----:|------:|
-| 14% | 3.00 | 71 | 50.7% | €+243 | +9.7% | +13.0% |
-| 13% | 3.00 | 79 | 50.6% | €+219 | +8.8% | +10.4% |
-| 12% | 3.00 | 86 | 50.0% | €+189 | +7.6% | +8.4% |
-| 16% | 3.00 | 59 | 49.2% | €+164 | +6.6% | +10.5% |
-| 15% | 3.00 | 63 | 49.2% | €+151 | +6.0% | +9.2% |
-
-### Mercado: OU25
-**Sweet spot**: edge ≥ 13%, odds ≤ 2.00
-
-Top 5 combinaciones por P&L:
-
-| Edge≥ | Odds≤ | N | Win% | P&L | ROI | Yield |
-|------:|------:|--:|-----:|----:|----:|------:|
-| 13% | 2.00 | 79 | 60.8% | €+163 | +6.5% | +8.0% |
-| 12% | 2.00 | 95 | 58.9% | €+128 | +5.1% | +5.3% |
-| 8% | 2.00 | 152 | 58.6% | €+124 | +5.0% | +3.2% |
-| 4% | 2.00 | 226 | 58.4% | €+114 | +4.6% | +2.2% |
-| 14% | 2.00 | 69 | 59.4% | €+109 | +4.4% | +6.2% |
-
-### Mercado: AH
-**Sweet spot**: edge ≥ 11%, odds ≤ 2.40
-
-Top 5 combinaciones por P&L:
-
-| Edge≥ | Odds≤ | N | Win% | P&L | ROI | Yield |
-|------:|------:|--:|-----:|----:|----:|------:|
-| 11% | 2.40 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 2.60 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 2.80 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 3.00 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-| 11% | 3.20 | 235 | 48.1% | €+310 | +12.4% | +4.9% |
-
----
-
-### Parametros recomendados para produccion
-
-> Basados en sweet spot P&L-maximo con N >= 50, test Pinnacle oct-feb 2026.
-
-| Mercado | Edge min | Odds max | N | P&L | Yield |
-|---------|----------:|---------:|--:|----:|------:|
-| 1X2 | 14% | 3.00 | 71 | €+243 | +13.0% |
-| OU25 | 13% | 2.00 | 79 | €+163 | +8.0% |
-| AH | 11% | 2.40 | 235 | €+310 | +4.9% |
+| AH | 11% | 2.30 | 234 | €+327 | +5.2% |
 
 > **Limitacion**: muestra ~150 partidos por liga en test set. Continuar
 > validando en produccion matchweek a matchweek antes de ajustar definitivamente.
