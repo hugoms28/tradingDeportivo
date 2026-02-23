@@ -54,8 +54,8 @@ def dc_xg_loss(params, match_xg, teams, reg=0.0, use_decay=False, half_life=60, 
     team_idx = {team: i for i, team in enumerate(teams)}
 
     alphas = params[:n_teams]
-    betas = params[n_teams:2 * n_teams]
-    gamma = params[2 * n_teams]
+    betas  = params[n_teams:2 * n_teams]
+    gammas = params[2 * n_teams:3 * n_teams]    # ventaja local por equipo
 
     if use_decay and reference_date is None and "datetime" in match_xg.columns:
         reference_date = match_xg["datetime"].max()
@@ -69,12 +69,12 @@ def dc_xg_loss(params, match_xg, teams, reg=0.0, use_decay=False, half_life=60, 
         xg_home = row["home_xg"]
         xg_away = row["away_xg"]
 
-        lambda_home = alphas[home_i] * betas[away_i] * gamma
-        mu_away = alphas[away_i] * betas[home_i]
+        lambda_home = alphas[home_i] * betas[away_i] * gammas[home_i]
+        mu_away     = alphas[away_i] * betas[home_i]
 
         # Poisson NLL: -(k * log(lambda) - lambda), con clip para evitar log(0)
         nll = -(xg_home * np.log(lambda_home + 1e-10) - lambda_home) \
-              -(xg_away * np.log(mu_away    + 1e-10) - mu_away)
+              -(xg_away * np.log(mu_away     + 1e-10) - mu_away)
 
         if use_decay and "datetime" in match_xg.columns and reference_date is not None:
             weight = time_decay_weight(row["datetime"], reference_date, half_life)
@@ -83,15 +83,21 @@ def dc_xg_loss(params, match_xg, teams, reg=0.0, use_decay=False, half_life=60, 
         total_nll += nll
 
     if reg > 0:
-        penalty = reg * (np.sum((alphas - 1) ** 2) + np.sum((betas - 1) ** 2))
+        # L2 sobre alphas, betas y gammas: todos se encogen hacia 1.0
+        penalty = reg * (
+            np.sum((alphas - 1) ** 2) +
+            np.sum((betas  - 1) ** 2) +
+            np.sum((gammas - 1) ** 2)
+        )
         total_nll += penalty
 
     return total_nll
 
 
-def estimate_rho(match_xg, alphas, betas, gamma, teams, raw_matches):
+def estimate_rho(match_xg, alphas, betas, gammas, teams, raw_matches):
     """
     Estima rho (correlacion Dixon-Coles) usando goles reales.
+    gammas: array de ventaja local por equipo.
     """
     team_idx = {team: i for i, team in enumerate(teams)}
 
@@ -122,7 +128,7 @@ def estimate_rho(match_xg, alphas, betas, gamma, teams, raw_matches):
             home_i = team_idx[row["home_team"]]
             away_i = team_idx[row["away_team"]]
 
-            lambda_h = alphas[home_i] * betas[away_i] * gamma
+            lambda_h = alphas[home_i] * betas[away_i] * gammas[home_i]
             mu_a = alphas[away_i] * betas[home_i]
 
             x, y = row["home_goals"], row["away_goals"]
@@ -169,7 +175,7 @@ def fit_dixon_coles_xg(match_xg, raw_matches=None, max_iter=500, reg=0.001,
 
     print(f"Equipos: {n_teams}")
     print(f"Partidos: {len(match_xg)}")
-    print(f"Parametros a estimar: {2 * n_teams + 1}")
+    print(f"Parametros a estimar: {3 * n_teams} (alpha + beta + gamma por equipo)")
     print(f"Regularizacion L2: {reg}")
 
     has_datetime = "datetime" in match_xg.columns
@@ -183,20 +189,26 @@ def fit_dixon_coles_xg(match_xg, raw_matches=None, max_iter=500, reg=0.001,
         print(f"Time Decay: OFF")
 
     x0 = np.concatenate([
-        np.ones(n_teams),
-        np.ones(n_teams),
-        [1.3]
+        np.ones(n_teams),       # alphas
+        np.ones(n_teams),       # betas
+        np.ones(n_teams) * 1.1, # gammas (ventaja local inicial ligeramente > 1)
     ])
 
     def constraint_sum_alpha(params):
         return np.sum(params[:n_teams]) - n_teams
 
-    constraints = [{"type": "eq", "fun": constraint_sum_alpha}]
+    def constraint_sum_gamma(params):
+        return np.sum(params[2 * n_teams:3 * n_teams]) - n_teams
+
+    constraints = [
+        {"type": "eq", "fun": constraint_sum_alpha},
+        {"type": "eq", "fun": constraint_sum_gamma},
+    ]
 
     bounds = (
-        [(0.01, 5.0)] * n_teams +
-        [(0.01, 5.0)] * n_teams +
-        [(0.5, 3.0)]
+        [(0.01, 5.0)] * n_teams +   # alphas
+        [(0.01, 5.0)] * n_teams +   # betas
+        [(0.1,  3.0)] * n_teams     # gammas
     )
 
     print("\nOptimizando...")
@@ -212,12 +224,13 @@ def fit_dixon_coles_xg(match_xg, raw_matches=None, max_iter=500, reg=0.001,
 
     params = result.x
     alphas = params[:n_teams]
-    betas = params[n_teams:2 * n_teams]
-    gamma = params[2 * n_teams]
+    betas  = params[n_teams:2 * n_teams]
+    gammas = params[2 * n_teams:3 * n_teams]
+    gamma_mean = float(np.mean(gammas))
 
     if raw_matches is not None:
         print("\nEstimando rho con goles reales...")
-        rho = estimate_rho(match_xg, alphas, betas, gamma, teams, raw_matches)
+        rho = estimate_rho(match_xg, alphas, betas, gammas, teams, raw_matches)
         print(f"rho estimado: {rho:.4f}")
     else:
         rho = -0.05
@@ -226,15 +239,24 @@ def fit_dixon_coles_xg(match_xg, raw_matches=None, max_iter=500, reg=0.001,
     params_df = pd.DataFrame({
         "team": teams,
         "alpha_attack": alphas,
-        "beta_defense": betas
-    })
+        "beta_defense": betas,
+        "gamma_home": gammas,
+    }).sort_values("gamma_home", ascending=False)
+
+    print(f"\nVentaja local (gamma) por equipo:")
+    print(f"  Media: {gamma_mean:.4f} | Min: {gammas.min():.4f} | Max: {gammas.max():.4f}")
+    top3 = params_df.head(3)
+    bot3 = params_df.tail(3)
+    print(f"  Fortines: {', '.join(f'{r.team}({r.gamma_home:.2f})' for _, r in top3.iterrows())}")
+    print(f"  Campo neutral: {', '.join(f'{r.team}({r.gamma_home:.2f})' for _, r in bot3.iterrows())}")
 
     return {
         "params_df": params_df,
         "teams": teams,
         "alphas": alphas,
         "betas": betas,
-        "gamma": gamma,
+        "gammas": gammas,
+        "gamma": gamma_mean,   # compatibilidad con modelos antiguos
         "rho": rho,
         "converged": result.success,
         "message": result.message,
@@ -267,7 +289,12 @@ def predict_match(home_team, away_team, model, max_goals=DEFAULT_MAX_GOALS):
     home_i = team_idx[home_team]
     away_i = team_idx[away_team]
 
-    lambda_home = model["alphas"][home_i] * model["betas"][away_i] * model["gamma"]
+    # Compatibilidad: modelos nuevos tienen gammas por equipo, viejos gamma escalar
+    if "gammas" in model:
+        gamma_home = model["gammas"][home_i]
+    else:
+        gamma_home = model["gamma"]
+    lambda_home = model["alphas"][home_i] * model["betas"][away_i] * gamma_home
     mu_away = model["alphas"][away_i] * model["betas"][home_i]
     rho = model["rho"]
 
@@ -594,7 +621,11 @@ def predict_matchday(matches, model, odds=None, min_edge=0.03):
     decay_info = ""
     if model.get("use_decay"):
         decay_info = f", decay={model.get('half_life')}d"
-    print(f"\nModelo: Dixon-Coles con xG (gamma={model['gamma']:.3f}, rho={model['rho']:.4f}{decay_info})")
+    gamma_info = f"gamma_medio={model['gamma']:.3f}"
+    if "gammas" in model:
+        g = model["gammas"]
+        gamma_info += f" [min={g.min():.2f} max={g.max():.2f}]"
+    print(f"\nModelo: Dixon-Coles con xG ({gamma_info}, rho={model['rho']:.4f}{decay_info})")
 
     print(f"\n{'Partido':<35} {'xG':>9} {'P(1)':>6} {'P(X)':>6} {'P(2)':>6} {'O1.5':>5} {'O2.5':>5} {'O3.5':>5} {'BTTS':>5} {'Score':>5}")
     print("-" * 120)
@@ -802,7 +833,11 @@ def save_model(model, name=None, league="EPL"):
 
     print(f"Modelo guardado: {filepath}")
     print(f"  Equipos: {len(model['teams'])}")
-    print(f"  Gamma: {model['gamma']:.4f}")
+    if "gammas" in model:
+        g = model["gammas"]
+        print(f"  Gamma medio: {model['gamma']:.4f} | Min: {g.min():.4f} | Max: {g.max():.4f}")
+    else:
+        print(f"  Gamma: {model['gamma']:.4f}")
     print(f"  Rho: {model['rho']:.4f}")
 
     return filepath
@@ -830,7 +865,12 @@ def load_model(filepath=None, latest=True, league="EPL"):
     print(f"Modelo cargado: {filepath}")
     print(f"  Guardado: {metadata.get('saved_at', 'N/A')}")
     print(f"  Equipos: {len(model['teams'])}")
-    print(f"  Gamma: {model['gamma']:.4f}, Rho: {model['rho']:.4f}")
+    if "gammas" in model:
+        g = model["gammas"]
+        print(f"  Gamma medio: {model['gamma']:.4f} | Min: {g.min():.4f} | Max: {g.max():.4f}")
+    else:
+        print(f"  Gamma: {model['gamma']:.4f} (modelo legacy)")
+    print(f"  Rho: {model['rho']:.4f}")
 
     return model
 

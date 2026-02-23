@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import type { Bet } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { SOURCES } from "@/lib/constants";
 
 const LEAGUE_LABELS: Record<string, string> = {
   EPL: "Premier League",
@@ -12,36 +13,206 @@ const LEAGUE_LABELS: Record<string, string> = {
   Ligue_1: "Ligue 1",
 };
 
+const MONTH_NAMES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
+function yearMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// Devuelve las semanas Lun-Dom que tienen días en el mes dado
+function getMonthWeeks(year: number, month: number): Array<{ start: Date; end: Date }> {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  lastDay.setHours(23, 59, 59, 999);
+
+  // Lunes anterior o igual al primer día del mes
+  const dow = firstDay.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
+  const offsetToMonday = dow === 0 ? -6 : 1 - dow;
+  const firstMonday = new Date(firstDay);
+  firstMonday.setDate(firstDay.getDate() + offsetToMonday);
+
+  const weeks: Array<{ start: Date; end: Date }> = [];
+  let cur = new Date(firstMonday);
+
+  while (cur <= lastDay) {
+    const weekEnd = new Date(cur);
+    weekEnd.setDate(cur.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    weeks.push({ start: new Date(cur), end: new Date(weekEnd) });
+    cur = new Date(cur);
+    cur.setDate(cur.getDate() + 7);
+  }
+
+  return weeks;
+}
+
+// Devuelve el índice (1-based) de la semana a la que pertenece la fecha, o -1
+function getWeekIndex(date: Date, weeks: Array<{ start: Date; end: Date }>): number {
+  for (let i = 0; i < weeks.length; i++) {
+    if (date >= weeks[i].start && date <= weeks[i].end) return i + 1;
+  }
+  return -1;
+}
+
 interface Props {
   bets: Bet[];
   onResolveBet: (id: number, result: "win" | "half_win" | "loss" | "half_loss" | "void") => void;
 }
 
 export function History({ bets, onResolveBet }: Props) {
-  const [selectedLeague, setSelectedLeague] = useState<string>("Todas");
+  const now = new Date();
+  const currentKey = yearMonthKey(now);
 
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentKey);
+  const [selectedWeek, setSelectedWeek] = useState<number>(0); // 0 = mes completo
+  const [selectedLeague, setSelectedLeague] = useState<string>("Todas");
+  const [selectedSource, setSelectedSource] = useState<string>("Todas");
+
+  // Meses disponibles: los que tienen apuestas + el mes actual
+  const availableMonths = useMemo(() => {
+    const seen = new Set<string>([currentKey]);
+    for (const b of bets) seen.add(yearMonthKey(new Date(b.timestamp)));
+    return Array.from(seen).sort().reverse();
+  }, [bets, currentKey]);
+
+  const { year, month } = useMemo(() => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    return { year: y, month: m - 1 };
+  }, [selectedMonth]);
+
+  const weeks = useMemo(() => getMonthWeeks(year, month), [year, month]);
+  const totalWeeks = weeks.length;
+
+  const handleMonthChange = (key: string) => {
+    setSelectedMonth(key);
+    setSelectedWeek(0);
+  };
+
+  // Ligas presentes en el mes seleccionado
   const leagues = useMemo(() => {
     const seen = new Set<string>();
     for (const b of bets) {
-      if (b.league) seen.add(b.league);
+      if (yearMonthKey(new Date(b.timestamp)) === selectedMonth && b.league)
+        seen.add(b.league);
     }
     return Array.from(seen).sort();
-  }, [bets]);
+  }, [bets, selectedMonth]);
 
-  const sorted = useMemo(() => {
-    const filtered =
-      selectedLeague === "Todas" ? bets : bets.filter((b) => b.league === selectedLeague);
-    return [...filtered].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-  }, [bets, selectedLeague]);
+  // Apuestas filtradas por todos los criterios
+  const filtered = useMemo(() => {
+    return bets.filter((b) => {
+      const d = new Date(b.timestamp);
+      if (yearMonthKey(d) !== selectedMonth) return false;
+      if (selectedWeek !== 0 && getWeekIndex(d, weeks) !== selectedWeek) return false;
+      if (selectedLeague !== "Todas" && b.league !== selectedLeague) return false;
+      if (selectedSource !== "Todas" && b.source !== selectedSource) return false;
+      return true;
+    });
+  }, [bets, selectedMonth, selectedWeek, selectedLeague, selectedSource, weeks]);
+
+  const sorted = useMemo(
+    () => [...filtered].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+    [filtered]
+  );
+
+  // Estadísticas del periodo
+  const periodStats = useMemo(() => {
+    const resolved = filtered.filter((b) => b.result !== null);
+    const pnl = resolved.reduce((s, b) => s + b.pnl, 0);
+    const staked = resolved.reduce((s, b) => s + b.stake, 0);
+    const wins = resolved.filter((b) => b.result === "win" || b.result === "half_win").length;
+    const roi = staked > 0 ? (pnl / staked) * 100 : 0;
+    const winRate = resolved.length > 0 ? (wins / resolved.length) * 100 : 0;
+    return { pnl, roi, winRate, resolved: resolved.length, total: filtered.length };
+  }, [filtered]);
+
+  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
+  const periodLabel = selectedWeek === 0 ? monthLabel : `Semana ${selectedWeek} · ${monthLabel}`;
 
   return (
     <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <div className="text-[15px] font-bold font-[family-name:var(--font-display)]">
-          Historial ({sorted.length}{selectedLeague !== "Todas" ? `/${bets.length}` : ""} apuestas)
+      <div className="flex flex-col gap-3 mb-4">
+
+        {/* Título + selector de mes */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="text-[15px] font-bold font-[family-name:var(--font-display)]">
+            Historial
+          </div>
+          <select
+            value={selectedMonth}
+            onChange={(e) => handleMonthChange(e.target.value)}
+            className="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 outline-none focus:border-emerald-600 transition cursor-pointer"
+          >
+            {availableMonths.map((key) => {
+              const [y, m] = key.split("-").map(Number);
+              return (
+                <option key={key} value={key}>
+                  {MONTH_NAMES[m - 1]} {y}
+                </option>
+              );
+            })}
+          </select>
         </div>
+
+        {/* Selector de semana */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {[0, ...Array.from({ length: totalWeeks }, (_, i) => i + 1)].map((w) => (
+            <button
+              key={w}
+              onClick={() => setSelectedWeek(w)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition ${
+                selectedWeek === w
+                  ? "bg-violet-600 text-white"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+              }`}
+            >
+              {w === 0 ? "Mes completo" : `Semana ${w}`}
+            </button>
+          ))}
+        </div>
+
+        {/* Barra de stats del periodo */}
+        <div className="grid grid-cols-4 gap-2 bg-[#0f172a] rounded-lg px-4 py-3 border border-slate-800">
+          <div className="text-center">
+            <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">P&L</div>
+            <div
+              className="text-sm font-bold font-[family-name:var(--font-display)]"
+              style={{ color: periodStats.pnl >= 0 ? "#10b981" : "#ef4444" }}
+            >
+              {formatCurrency(periodStats.pnl)}
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">ROI</div>
+            <div
+              className="text-sm font-bold font-[family-name:var(--font-display)]"
+              style={{ color: periodStats.roi >= 0 ? "#10b981" : "#ef4444" }}
+            >
+              {periodStats.roi.toFixed(1)}%
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Win Rate</div>
+            <div
+              className="text-sm font-bold font-[family-name:var(--font-display)]"
+              style={{ color: periodStats.winRate >= 50 ? "#10b981" : "#f59e0b" }}
+            >
+              {periodStats.winRate.toFixed(0)}%
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Apuestas</div>
+            <div className="text-sm font-bold text-slate-300 font-[family-name:var(--font-display)]">
+              {periodStats.resolved}
+              <span className="text-slate-600 text-[10px] font-normal">/{periodStats.total}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Filtro por liga */}
         {leagues.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
             {["Todas", ...leagues].map((league) => (
@@ -59,10 +230,30 @@ export function History({ bets, onResolveBet }: Props) {
             ))}
           </div>
         )}
+
+        {/* Filtro por fuente */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {["Todas", ...SOURCES].map((source) => (
+            <button
+              key={source}
+              onClick={() => setSelectedSource(source)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition ${
+                selectedSource === source
+                  ? "bg-emerald-700 text-white"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+              }`}
+            >
+              {source}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Lista de apuestas */}
       {sorted.length === 0 ? (
-        <div className="text-center py-10 text-slate-500 text-sm">Sin apuestas registradas</div>
+        <div className="text-center py-10 text-slate-500 text-sm">
+          Sin apuestas en {periodLabel}
+        </div>
       ) : (
         <div className="flex flex-col gap-1.5">
           {sorted.map((bet) => {

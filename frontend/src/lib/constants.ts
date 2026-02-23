@@ -17,6 +17,8 @@ export const SOURCES: BetSource[] = ["Modelo", "Tipster", "Propia"];
 
 export const MARKETS = ["1X2", "Over/Under", "Asian Handicap", "BTTS", "Double Chance", "Otro"] as const;
 
+export const SPORTS = ["Fútbol", "Baloncesto", "Tenis", "Esports", "Dardos", "Hockey", "Combi"] as const;
+
 export const LEAGUES = [
   "EPL", "La_Liga", "Bundesliga", "Serie_A", "Ligue_1",
 ] as const;

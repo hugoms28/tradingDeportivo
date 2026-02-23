@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import type { BetFormData, DisciplineSettings, LockStatus } from "@/lib/types";
 import { calcKellyStake, calcEdge } from "@/lib/calculations";
-import { SOURCES, MARKETS, LEAGUES } from "@/lib/constants";
+import { SOURCES, MARKETS, LEAGUES, SPORTS } from "@/lib/constants";
 
 interface Props {
   bankroll: number;
@@ -22,6 +22,7 @@ export function NewBetForm({ bankroll, settings, lockStatus, onPlaceBet, onNotif
     event: "",
     source: "Modelo",
     tipsterName: "",
+    sport: "",
     modelProb: "",
     odds: "",
     stake: "",
@@ -48,7 +49,7 @@ export function NewBetForm({ bankroll, settings, lockStatus, onPlaceBet, onNotif
     const odds = parseFloat(form.odds);
     const stake = form.source === "Modelo" && kelly ? kelly.stake : parseFloat(form.stake);
     onNotify(`Apuesta registrada: ${stake.toFixed(2)}€ @ ${odds}`, "success");
-    setForm({ event: "", source: "Modelo", tipsterName: "", modelProb: "", odds: "", stake: "", market: "1X2", pick: "", league: "" });
+    setForm({ event: "", source: "Modelo", tipsterName: "", sport: "", modelProb: "", odds: "", stake: "", market: "1X2", pick: "", league: "" });
     onNavigate("dashboard");
   };
 
@@ -112,6 +113,19 @@ export function NewBetForm({ bankroll, settings, lockStatus, onPlaceBet, onNotif
               Nombre del Tipster
             </label>
             <input className={inputCls} placeholder="Nombre" value={form.tipsterName} onChange={(e) => set({ tipsterName: e.target.value })} />
+          </div>
+        )}
+
+        {/* Sport selector (Tipster / Propia) */}
+        {(form.source === "Tipster" || form.source === "Propia") && (
+          <div>
+            <label className="text-[11px] text-slate-500 uppercase tracking-widest mb-1.5 block font-semibold">
+              Deporte
+            </label>
+            <select className={inputCls} value={form.sport} onChange={(e) => set({ sport: e.target.value })}>
+              <option value="">-- Seleccionar --</option>
+              {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
         )}
 

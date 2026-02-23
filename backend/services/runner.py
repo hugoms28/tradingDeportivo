@@ -18,12 +18,22 @@ from models_db import Prediction, ModelRun
 active_runs: dict[str, dict] = {}
 
 # ─── Edge thresholds per market type ────────────────────────────────────────
+# Valores optimizados via grid search (research/optimize_filters.py, Feb 2026)
+# vs Pinnacle closing odds, test set oct 2025 – feb 2026, N>=50 bets.
 EDGE_THRESHOLDS = {
-    "dc":   0.05,   # Doble Oportunidad >= 5%
-    "ah":   0.05,   # Asian Handicap >= 5%
-    "ou":   0.12,   # Over/Under >= 12%
-    "btts": 0.12,   # BTTS >= 12% (consejo)
-    "1x2":  0.15,   # 1X2 >= 15% (consejo)
+    "dc":   0.05,   # Doble Oportunidad >= 5%  (no tested; conservative)
+    "ah":   0.11,   # Asian Handicap >= 11%    (era 5%; sweet spot N=235, yield +4.9%)
+    "ou":   0.13,   # Over/Under >= 13%        (era 12%; sweet spot N=79, yield +8.0%)
+    "btts": 0.12,   # BTTS >= 12% (consejo)    (no tested; unchanged)
+    "1x2":  0.14,   # 1X2 >= 14% (consejo)     (era 15%; sweet spot N=71, yield +13.0%)
+}
+
+# ─── Odds caps per market type ───────────────────────────────────────────────
+# Cuotas maximas: por encima de estos valores el P&L es consistentemente negativo.
+ODDS_CAPS = {
+    "ah":  2.40,    # AH odds > 2.40 no existen en practica; actua como safety filter
+    "ou":  2.00,    # OU odds > 2.00 pierden sistematicamente (longshots de goles)
+    "1x2": 3.00,    # 1X2 odds > 3.00 pierden sistematicamente (sobreestimacion visitantes)
 }
 
 
@@ -206,9 +216,11 @@ def _find_value_bets(row) -> list[dict]:
                 "type": "principal",
             })
 
-    # ─── Asian Handicap (principal, >= 5%) ───
+    # ─── Asian Handicap (principal, >= 11%, odds <= 2.40) ───
     ah_edge = _safe_float(row.get("Best_AH_Edge"))
-    if ah_edge is not None and ah_edge >= EDGE_THRESHOLDS["ah"]:
+    ah_odds = _safe_float(row.get("Best_AH_Odds"))
+    if (ah_edge is not None and ah_edge >= EDGE_THRESHOLDS["ah"]
+            and ah_odds is not None and ah_odds <= ODDS_CAPS["ah"]):
         line = row.get("Best_AH_Line", "?")
         side = row.get("Best_AH_Side", "?")
         bets.append({
@@ -216,13 +228,15 @@ def _find_value_bets(row) -> list[dict]:
             "label": f"AH {side} {line}",
             "edge": ah_edge,
             "prob": _safe_float(row.get("Best_AH_Prob")),
-            "odds": _safe_float(row.get("Best_AH_Odds")),
+            "odds": ah_odds,
             "type": "principal",
         })
 
-    # ─── Over/Under (principal, >= 12%) ───
+    # ─── Over/Under (principal, >= 13%, odds <= 2.00) ───
     ou_edge = _safe_float(row.get("Best_OU_Edge"))
-    if ou_edge is not None and ou_edge >= EDGE_THRESHOLDS["ou"]:
+    ou_odds = _safe_float(row.get("Best_OU_Odds"))
+    if (ou_edge is not None and ou_edge >= EDGE_THRESHOLDS["ou"]
+            and ou_odds is not None and ou_odds <= ODDS_CAPS["ou"]):
         line = row.get("Best_OU_Line", "?")
         side = row.get("Best_OU_Side", "?")
         bets.append({
@@ -230,20 +244,22 @@ def _find_value_bets(row) -> list[dict]:
             "label": f"{side} {line}",
             "edge": ou_edge,
             "prob": _safe_float(row.get("Best_OU_Prob")),
-            "odds": _safe_float(row.get("Best_OU_Odds")),
+            "odds": ou_odds,
             "type": "principal",
         })
     # Also check fixed O/U 2.5
     for key, label, prob_key in [("Edge_O25", "Over 2.5", "P_O25"), ("Edge_U25", "Under 2.5", "P_U25")]:
         edge = _safe_float(row.get(key))
-        if edge is not None and edge >= EDGE_THRESHOLDS["ou"]:
-            odds_key = "Odds_O25" if "O25" in key else "Odds_U25"
+        odds_key = "Odds_O25" if "O25" in key else "Odds_U25"
+        odds = _safe_float(row.get(odds_key))
+        if (edge is not None and edge >= EDGE_THRESHOLDS["ou"]
+                and odds is not None and odds <= ODDS_CAPS["ou"]):
             bets.append({
                 "market": "Over/Under",
                 "label": label,
                 "edge": edge,
                 "prob": _safe_float(row.get(prob_key)),
-                "odds": _safe_float(row.get(odds_key)),
+                "odds": odds,
                 "type": "principal",
             })
 
@@ -263,20 +279,22 @@ def _find_value_bets(row) -> list[dict]:
                 "type": "consejo",
             })
 
-    # ─── 1X2 (consejo, >= 15%) ───
+    # ─── 1X2 (consejo, >= 14%, odds <= 3.00) ───
     for key, label, prob_key, odds_key in [
         ("Edge_1", "1 (Local)", "P_1", "Odds_1"),
         ("Edge_X", "X (Empate)", "P_X", "Odds_X"),
         ("Edge_2", "2 (Visitante)", "P_2", "Odds_2"),
     ]:
         edge = _safe_float(row.get(key))
-        if edge is not None and edge >= EDGE_THRESHOLDS["1x2"]:
+        odds = _safe_float(row.get(odds_key))
+        if (edge is not None and edge >= EDGE_THRESHOLDS["1x2"]
+                and odds is not None and odds <= ODDS_CAPS["1x2"]):
             bets.append({
                 "market": "1X2",
                 "label": label,
                 "edge": edge,
                 "prob": _safe_float(row.get(prob_key)),
-                "odds": _safe_float(row.get(odds_key)),
+                "odds": odds,
                 "type": "consejo",
             })
 

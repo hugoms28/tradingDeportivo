@@ -1,0 +1,302 @@
+{
+  "EPL": {
+    "league": "EPL",
+    "n_train": 448,
+    "n_test": 192,
+    "n_evaluated": 192,
+    "brier_score": 0.6423,
+    "brier_naive": 0.6667,
+    "skill_score": 0.0365,
+    "pnl_total": 2065.59,
+    "bankroll_final": 2565.59,
+    "max_drawdown": 750.69,
+    "bets_placed": 245,
+    "roi": 413.12,
+    "converged": true,
+    "elapsed_s": 167.6,
+    "gamma_top5": [
+      [
+        "Newcastle United",
+        1.6071
+      ],
+      [
+        "Nottingham Forest",
+        1.3849
+      ],
+      [
+        "Wolverhampton Wanderers",
+        1.3369
+      ],
+      [
+        "Brentford",
+        1.3211
+      ],
+      [
+        "Burnley",
+        1.2939
+      ]
+    ],
+    "gamma_bot5": [
+      [
+        "Bournemouth",
+        0.8234
+      ],
+      [
+        "Brighton",
+        0.7391
+      ],
+      [
+        "Leicester",
+        0.2558
+      ],
+      [
+        "Southampton",
+        0.2358
+      ],
+      [
+        "Ipswich",
+        0.2238
+      ]
+    ]
+  },
+  "La_Liga": {
+    "league": "La_Liga",
+    "n_train": 431,
+    "n_test": 186,
+    "n_evaluated": 186,
+    "brier_score": 0.6203,
+    "brier_naive": 0.6667,
+    "skill_score": 0.0695,
+    "pnl_total": 3680.88,
+    "bankroll_final": 4180.88,
+    "max_drawdown": 1260.17,
+    "bets_placed": 215,
+    "roi": 736.18,
+    "converged": true,
+    "elapsed_s": 94.0,
+    "gamma_top5": [
+      [
+        "Elche",
+        1.798
+      ],
+      [
+        "Mallorca",
+        1.5833
+      ],
+      [
+        "Atletico Madrid",
+        1.4787
+      ],
+      [
+        "Osasuna",
+        1.4015
+      ],
+      [
+        "Rayo Vallecano",
+        1.3237
+      ]
+    ],
+    "gamma_bot5": [
+      [
+        "Real Oviedo",
+        0.6813
+      ],
+      [
+        "Getafe",
+        0.6643
+      ],
+      [
+        "Leganes",
+        0.3227
+      ],
+      [
+        "Las Palmas",
+        0.3163
+      ],
+      [
+        "Real Valladolid",
+        0.2559
+      ]
+    ]
+  },
+  "Bundesliga": {
+    "league": "Bundesliga",
+    "n_train": 350,
+    "n_test": 151,
+    "n_evaluated": 151,
+    "brier_score": 0.5924,
+    "brier_naive": 0.6667,
+    "skill_score": 0.1113,
+    "pnl_total": 2678.04,
+    "bankroll_final": 3178.04,
+    "max_drawdown": 541.34,
+    "bets_placed": 168,
+    "roi": 535.61,
+    "converged": true,
+    "elapsed_s": 58.8,
+    "gamma_top5": [
+      [
+        "Hamburger SV",
+        1.3898
+      ],
+      [
+        "Freiburg",
+        1.3524
+      ],
+      [
+        "Bayer Leverkusen",
+        1.2589
+      ],
+      [
+        "RasenBallsport Leipzig",
+        1.1748
+      ],
+      [
+        "Bayern Munich",
+        1.172
+      ]
+    ],
+    "gamma_bot5": [
+      [
+        "FC Heidenheim",
+        0.8908
+      ],
+      [
+        "FC Cologne",
+        0.8517
+      ],
+      [
+        "St. Pauli",
+        0.8283
+      ],
+      [
+        "Bochum",
+        0.3085
+      ],
+      [
+        "Holstein Kiel",
+        0.2573
+      ]
+    ]
+  },
+  "Ligue_1": {
+    "league": "Ligue_1",
+    "n_train": 352,
+    "n_test": 152,
+    "n_evaluated": 152,
+    "brier_score": 0.6218,
+    "brier_naive": 0.6667,
+    "skill_score": 0.0673,
+    "pnl_total": 1500.38,
+    "bankroll_final": 2000.38,
+    "max_drawdown": 317.12,
+    "bets_placed": 199,
+    "roi": 300.08,
+    "converged": true,
+    "elapsed_s": 56.1,
+    "gamma_top5": [
+      [
+        "Rennes",
+        1.601
+      ],
+      [
+        "Angers",
+        1.5395
+      ],
+      [
+        "Brest",
+        1.3587
+      ],
+      [
+        "Monaco",
+        1.3285
+      ],
+      [
+        "Lorient",
+        1.2985
+      ]
+    ],
+    "gamma_bot5": [
+      [
+        "Toulouse",
+        0.7998
+      ],
+      [
+        "Lens",
+        0.7903
+      ],
+      [
+        "Montpellier",
+        0.3413
+      ],
+      [
+        "Saint-Etienne",
+        0.34
+      ],
+      [
+        "Reims",
+        0.3139
+      ]
+    ]
+  },
+  "Serie_A": {
+    "league": "Serie_A",
+    "n_train": 446,
+    "n_test": 192,
+    "n_evaluated": 192,
+    "brier_score": 0.6026,
+    "brier_naive": 0.6667,
+    "skill_score": 0.0961,
+    "pnl_total": 7865.19,
+    "bankroll_final": 8365.19,
+    "max_drawdown": 1582.35,
+    "bets_placed": 199,
+    "roi": 1573.04,
+    "converged": true,
+    "elapsed_s": 78.7,
+    "gamma_top5": [
+      [
+        "Atalanta",
+        1.6458
+      ],
+      [
+        "Inter",
+        1.4227
+      ],
+      [
+        "Lazio",
+        1.391
+      ],
+      [
+        "Roma",
+        1.2778
+      ],
+      [
+        "Torino",
+        1.2573
+      ]
+    ],
+    "gamma_bot5": [
+      [
+        "Verona",
+        0.8259
+      ],
+      [
+        "Sassuolo",
+        0.7984
+      ],
+      [
+        "Venezia",
+        0.4716
+      ],
+      [
+        "Monza",
+        0.339
+      ],
+      [
+        "Empoli",
+        0.2714
+      ]
+    ]
+  }
+}

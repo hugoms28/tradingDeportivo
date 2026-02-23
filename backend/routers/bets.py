@@ -21,6 +21,7 @@ class BetCreate(BaseModel):
     league: str = ""
     source: str  # Modelo / Tipster / Propia
     tipster_name: str = ""
+    sport: str | None = None
     market: str
     pick: str
     odds: float
@@ -73,6 +74,7 @@ async def create_bet(
         league=data.league,
         source=data.source,
         tipster_name=data.tipster_name,
+        sport=data.sport,
         market=data.market,
         pick=data.pick,
         odds=data.odds,
@@ -272,6 +274,7 @@ def _bet_to_dict(b: Bet) -> dict:
         "league": b.league,
         "source": b.source,
         "tipsterName": b.tipster_name,
+        "sport": b.sport,
         "market": b.market,
         "pick": b.pick,
         "odds": b.odds,

@@ -3,6 +3,7 @@ export interface Bet {
   event: string;
   source: BetSource;
   tipsterName: string;
+  sport?: string | null;
   market: string;
   pick: string;
   odds: number;
@@ -51,6 +52,7 @@ export interface BetFormData {
   event: string;
   source: BetSource;
   tipsterName: string;
+  sport: string;
   modelProb: string;
   odds: string;
   stake: string;

@@ -59,6 +59,7 @@ export interface ApiBet {
   league: string;
   source: string;
   tipsterName: string;
+  sport: string | null;
   market: string;
   pick: string;
   odds: number;
@@ -176,6 +177,7 @@ export async function createBet(data: {
   league: string;
   source: string;
   tipster_name?: string;
+  sport?: string | null;
   market: string;
   pick: string;
   odds: number;

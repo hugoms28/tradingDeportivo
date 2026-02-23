@@ -56,6 +56,7 @@ class Bet(Base):
     model_prob = Column(Float)
     stake = Column(Float, nullable=False)
     edge = Column(Float)
+    sport = Column(Text, nullable=True)           # Futbol / Baloncesto / etc.
     result = Column(Text)  # win / half_win / loss / half_loss / void / null
     pnl = Column(Float, default=0.0)
     closing_odds = Column(Float, nullable=True)   # Odd de cierre PS3838
