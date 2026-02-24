@@ -85,14 +85,8 @@ async def create_bet(
     )
     session.add(bet)
 
-    # Deduct stake from bankroll immediately (forward-test mode)
-    bankroll_res = await session.execute(
-        select(Setting).where(Setting.key == "bankroll")
-    )
-    bankroll_row = bankroll_res.scalar_one_or_none()
-    if bankroll_row:
-        current = float(bankroll_row.value)
-        bankroll_row.value = str(round(current - data.stake, 2))
+    # Bankroll no cambia al registrar la apuesta — solo se actualiza al resolver.
+    # Así todas las apuestas de una misma jornada calculan Kelly sobre el bankroll completo.
 
     await session.commit()
     await session.refresh(bet)
@@ -129,22 +123,9 @@ async def resolve_bet(
     bet.pnl = round(pnl, 2)
     bet.resolved_at = datetime.utcnow()
 
-    # Update bankroll: stake was already deducted at placement, so return:
-    # - win:       stake * odds          (full stake + full profit)
-    # - half_win:  stake/2 * odds + stake/2  (half wins, half pushed)
-    # - loss:      0                     (stake already gone)
-    # - half_loss: stake / 2             (half returned, half gone)
-    # - void:      stake                 (full refund)
-    if data.result == "win":
-        bankroll_delta = round(bet.stake * bet.odds, 2)
-    elif data.result == "half_win":
-        bankroll_delta = round(bet.stake / 2 * bet.odds + bet.stake / 2, 2)
-    elif data.result == "half_loss":
-        bankroll_delta = round(bet.stake / 2, 2)
-    elif data.result == "void":
-        bankroll_delta = bet.stake
-    else:  # loss
-        bankroll_delta = 0.0
+    # Bankroll se actualiza solo al resolver: delta = pnl neto.
+    # La stake nunca se descontó al crear, así que aquí aplicamos el resultado completo.
+    bankroll_delta = round(pnl, 2)
 
     bankroll_setting = await session.execute(
         select(Setting).where(Setting.key == "bankroll")

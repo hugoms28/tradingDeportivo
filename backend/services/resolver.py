@@ -320,19 +320,17 @@ async def auto_resolve_pending_bets() -> dict:
 
                     if outcome == "win":
                         pnl = b.stake * (b.odds - 1)
-                        bankroll_delta = round(b.stake * b.odds, 2)
                     elif outcome == "half_win":
                         pnl = (b.stake / 2) * (b.odds - 1)
-                        bankroll_delta = round(b.stake / 2 * b.odds + b.stake / 2, 2)
                     elif outcome == "loss":
                         pnl = -b.stake
-                        bankroll_delta = 0.0
                     elif outcome == "half_loss":
                         pnl = -(b.stake / 2)
-                        bankroll_delta = round(b.stake / 2, 2)
                     else:  # void
                         pnl = 0.0
-                        bankroll_delta = b.stake
+
+                    # Bankroll delta = pnl neto (stake nunca se descontó al crear)
+                    bankroll_delta = round(pnl, 2)
 
                     b.result = outcome
                     b.pnl = round(pnl, 2)
