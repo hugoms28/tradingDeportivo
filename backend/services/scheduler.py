@@ -24,6 +24,7 @@ _cron_config = {
 }
 
 JOB_ID = "auto_predictions"
+JOB_ID_RESOLVE = "auto_resolve_weekend"
 
 
 async def _cron_job():
@@ -35,6 +36,14 @@ async def _cron_job():
     print(f"[Scheduler] Cron completed at {datetime.utcnow().isoformat()}")
 
 
+async def _auto_resolve_job():
+    """Cron job: auto-resolve pending bets (sáb + dom 22:00 UTC) para capturar CLV."""
+    from services.resolver import auto_resolve_pending_bets
+    print(f"[Scheduler] Auto-resolve triggered at {datetime.utcnow().isoformat()}")
+    result = await auto_resolve_pending_bets()
+    print(f"[Scheduler] Auto-resolve done — {result}")
+
+
 def start_scheduler() -> AsyncIOScheduler | None:
     """Initialize and start the scheduler (called on app startup)."""
     global _scheduler, _enabled
@@ -42,7 +51,16 @@ def start_scheduler() -> AsyncIOScheduler | None:
     _scheduler = AsyncIOScheduler()
     _scheduler.start()
 
-    # Don't add the job by default - user enables via API
+    # Auto-resolve: sáb + dom a las 22:00 UTC — siempre activo para capturar CLV
+    _scheduler.add_job(
+        _auto_resolve_job,
+        CronTrigger(day_of_week="sat,sun", hour=23, minute=30, timezone="Europe/Madrid"),
+        id=JOB_ID_RESOLVE,
+        replace_existing=True,
+    )
+    print("[Scheduler] Auto-resolve programado: sáb + dom 23:30 Europe/Madrid")
+
+    # Predictions job: disabled by default, user enables via API
     _enabled = False
 
     return _scheduler

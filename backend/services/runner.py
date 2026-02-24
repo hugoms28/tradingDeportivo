@@ -22,18 +22,20 @@ active_runs: dict[str, dict] = {}
 # vs Pinnacle closing odds, test set oct 2025 – feb 2026, N>=50 bets.
 EDGE_THRESHOLDS = {
     "dc":   0.05,   # Doble Oportunidad >= 5%  (no tested; conservative)
-    "ah":   0.11,   # Asian Handicap >= 11%    (era 5%; sweet spot N=235, yield +4.9%)
-    "ou":   0.13,   # Over/Under >= 13%        (era 12%; sweet spot N=79, yield +8.0%)
+    "ah":   0.05,   # Asian Handicap >= 5%     (grid search Feb-24: sweet spot 3%, +5% margen seguridad)
+    "ou":   0.14,   # Over/Under >= 14%        (grid search Feb-24: sweet spot 14%, N=85, yield +11.7%)
     "btts": 0.12,   # BTTS >= 12% (consejo)    (no tested; unchanged)
-    "1x2":  0.14,   # 1X2 >= 14% (consejo)     (era 15%; sweet spot N=71, yield +13.0%)
+    "1x2":  0.06,   # 1X2 >= 6% (consejo)      (grid search Feb-24: sweet spot 4%, +2% margen seguridad)
 }
 
 # ─── Odds caps per market type ───────────────────────────────────────────────
 # Cuotas maximas: por encima de estos valores el P&L es consistentemente negativo.
 ODDS_CAPS = {
-    "ah":  2.30,    # AH odds > 2.30 degradan el yield (sweet spot refinado paso 0.10)
-    "ou":  2.00,    # OU odds > 2.00 pierden sistematicamente (longshots de goles)
-    "1x2": 3.00,    # 1X2 odds > 3.00 pierden sistematicamente (sobreestimacion visitantes)
+    "dc":  2.10,    # DC odds > 2.10 fuera de rango cobertura (derivado de AH)
+    "ah":  2.30,    # AH odds > 2.30 degradan el yield (confirmado Feb-24 con gamma corregido)
+    "ou":  2.00,    # OU odds > 2.00 pierden sistematicamente (confirmado Feb-24)
+    "btts": 2.50,   # BTTS odds > 2.50 excesivo para mercado secundario
+    "1x2": 3.00,    # 1X2 odds > 3.00 pierden sistematicamente (confirmado Feb-24)
 }
 
 
@@ -201,22 +203,22 @@ def _find_value_bets(row) -> list[dict]:
     """
     bets = []
 
-    # ─── Doble Oportunidad (principal, >= 5%) ───
+    # ─── Doble Oportunidad (principal, >= 5%, odds <= 2.10) ───
     for key, label in [("Edge_1X", "1X"), ("Edge_X2", "X2"), ("Edge_12", "12")]:
         edge = _safe_float(row.get(key))
-        if edge is not None and edge >= EDGE_THRESHOLDS["dc"]:
-            prob_key = f"P_{label}"
-            odds_key = f"Odds_{label}"
+        odds = _safe_float(row.get(f"Odds_{label}"))
+        if (edge is not None and edge >= EDGE_THRESHOLDS["dc"]
+                and odds is not None and odds <= ODDS_CAPS["dc"]):
             bets.append({
                 "market": "Doble Oportunidad",
                 "label": f"DC {label}",
                 "edge": edge,
-                "prob": _safe_float(row.get(prob_key)),
-                "odds": _safe_float(row.get(odds_key)),
+                "prob": _safe_float(row.get(f"P_{label}")),
+                "odds": odds,
                 "type": "principal",
             })
 
-    # ─── Asian Handicap (principal, >= 11%, odds <= 2.40) ───
+    # ─── Asian Handicap (principal, >= 5%, odds <= 2.30) ───
     ah_edge = _safe_float(row.get("Best_AH_Edge"))
     ah_odds = _safe_float(row.get("Best_AH_Odds"))
     if (ah_edge is not None and ah_edge >= EDGE_THRESHOLDS["ah"]
@@ -232,7 +234,7 @@ def _find_value_bets(row) -> list[dict]:
             "type": "principal",
         })
 
-    # ─── Over/Under (principal, >= 13%, odds <= 2.00) ───
+    # ─── Over/Under (principal, >= 14%, odds <= 2.00) ───
     ou_edge = _safe_float(row.get("Best_OU_Edge"))
     ou_odds = _safe_float(row.get("Best_OU_Odds"))
     if (ou_edge is not None and ou_edge >= EDGE_THRESHOLDS["ou"]
@@ -263,23 +265,25 @@ def _find_value_bets(row) -> list[dict]:
                 "type": "principal",
             })
 
-    # ─── BTTS (consejo, >= 12%) ───
+    # ─── BTTS (consejo, >= 12%, odds <= 2.50) ───
     for key, label, prob_key, odds_key in [
         ("Edge_BTTS_Si", "BTTS Sí", "P_BTTS", "Odds_BTTS_Si"),
         ("Edge_BTTS_No", "BTTS No", "P_BTTS_No", "Odds_BTTS_No"),
     ]:
         edge = _safe_float(row.get(key))
-        if edge is not None and edge >= EDGE_THRESHOLDS["btts"]:
+        odds = _safe_float(row.get(odds_key))
+        if (edge is not None and edge >= EDGE_THRESHOLDS["btts"]
+                and odds is not None and odds <= ODDS_CAPS["btts"]):
             bets.append({
                 "market": "BTTS",
                 "label": label,
                 "edge": edge,
                 "prob": _safe_float(row.get(prob_key)),
-                "odds": _safe_float(row.get(odds_key)),
+                "odds": odds,
                 "type": "consejo",
             })
 
-    # ─── 1X2 (consejo, >= 14%, odds <= 3.00) ───
+    # ─── 1X2 (consejo, >= 6%, odds <= 3.00) ───
     for key, label, prob_key, odds_key in [
         ("Edge_1", "1 (Local)", "P_1", "Odds_1"),
         ("Edge_X", "X (Empate)", "P_X", "Odds_X"),

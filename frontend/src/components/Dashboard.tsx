@@ -191,7 +191,7 @@ export function Dashboard({ state, stats, settings, lockStatus, onResolveBet, on
         <div className="bg-[#111827] border border-indigo-900/50 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="text-[11px] text-indigo-400 uppercase tracking-widest font-semibold">
-              Modelo — Forward Test
+              Modelo
             </div>
             <span className="text-[10px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded-full font-semibold">
               {modelStats.total} apuestas

@@ -11,7 +11,7 @@ import json
 import time
 
 # ── Rutas absolutas (funciona desde cualquier directorio) ──────────────────
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ["TRADING_CACHE_DIR"]  = os.path.join(ROOT, "backend", "cache")
 os.environ["TRADING_MODELS_DIR"] = os.path.join(ROOT, "backend", "models")
 os.environ["TRADING_CACHE_TTL"]  = "999999"   # evita que el cache expire

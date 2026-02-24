@@ -197,12 +197,11 @@ def fit_dixon_coles_xg(match_xg, raw_matches=None, max_iter=500, reg=0.001,
     def constraint_sum_alpha(params):
         return np.sum(params[:n_teams]) - n_teams
 
-    def constraint_sum_gamma(params):
-        return np.sum(params[2 * n_teams:3 * n_teams]) - n_teams
-
+    # No se aplica constraint sobre gammas: la media es libre para reflejar
+    # la ventaja local real (~1.2-1.4). Forzar mean(gamma)=1.0 inflaba los
+    # alphas y hacía que el modelo sobreestimara a los visitantes.
     constraints = [
         {"type": "eq", "fun": constraint_sum_alpha},
-        {"type": "eq", "fun": constraint_sum_gamma},
     ]
 
     bounds = (
