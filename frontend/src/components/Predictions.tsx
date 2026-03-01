@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import type { Bet } from "@/lib/types";
 import { calcKellyStake } from "@/lib/calculations";
+import { BOOKMAKERS, BOOKMAKER_COLORS } from "@/lib/constants";
 
 const LEAGUES = ["EPL", "La_Liga", "Bundesliga", "Serie_A", "Ligue_1"];
 
@@ -18,12 +19,13 @@ interface Props {
   bankroll: number;
   kellyFraction: number;
   maxStakePct: number;
-  onPlaceBet: (prediction: Prediction, bet: ValueBet) => Promise<string | null>;
+  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string) => Promise<string | null>;
   placedBets: Bet[];
 }
 
 export function Predictions({ onNotify, bankroll, kellyFraction, maxStakePct, onPlaceBet, placedBets }: Props) {
   const [league, setLeague] = useState("EPL");
+  const [selectedBookmaker, setSelectedBookmaker] = useState<string>("");
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
@@ -129,6 +131,28 @@ export function Predictions({ onNotify, bankroll, kellyFraction, maxStakePct, on
         ))}
       </div>
 
+      {/* Bookmaker selector */}
+      <div className="flex items-center gap-2 flex-wrap pt-1">
+        <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Casa:</span>
+        {BOOKMAKERS.map((bm) => {
+          const c = BOOKMAKER_COLORS[bm];
+          const isActive = selectedBookmaker === bm;
+          return (
+            <button
+              key={bm}
+              onClick={() => setSelectedBookmaker(isActive ? "" : bm)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition border ${
+                isActive
+                  ? `${c.activeBg} ${c.text} border-transparent`
+                  : `bg-transparent ${c.text} border-current opacity-50 hover:opacity-90`
+              }`}
+            >
+              {bm}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Loading */}
       {loading && (
         <div className="text-center text-slate-500 text-sm py-8">Cargando...</div>
@@ -157,6 +181,7 @@ export function Predictions({ onNotify, bankroll, kellyFraction, maxStakePct, on
               onPlaceBet={onPlaceBet}
               onNotify={onNotify}
               placedBets={placedBets}
+              bookmaker={selectedBookmaker}
             />
           ))}
         </div>
@@ -195,12 +220,13 @@ interface MatchCardProps {
   bankroll: number;
   kellyFraction: number;
   maxStakePct: number;
-  onPlaceBet: (prediction: Prediction, bet: ValueBet) => Promise<string | null>;
+  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string) => Promise<string | null>;
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
   placedBets: Bet[];
+  bookmaker: string;
 }
 
-function MatchCard({ prediction: p, bankroll, kellyFraction, maxStakePct, onPlaceBet, onNotify, placedBets }: MatchCardProps) {
+function MatchCard({ prediction: p, bankroll, kellyFraction, maxStakePct, onPlaceBet, onNotify, placedBets, bookmaker }: MatchCardProps) {
   const principals = p.value_bets.filter((v) => v.type === "principal");
   const tips = p.value_bets.filter((v) => v.type === "consejo");
 
@@ -237,6 +263,7 @@ function MatchCard({ prediction: p, bankroll, kellyFraction, maxStakePct, onPlac
               onPlaceBet={onPlaceBet}
               onNotify={onNotify}
               placedBets={placedBets}
+              bookmaker={bookmaker}
             />
           ))}
         </div>
@@ -260,6 +287,7 @@ function MatchCard({ prediction: p, bankroll, kellyFraction, maxStakePct, onPlac
               onPlaceBet={onPlaceBet}
               onNotify={onNotify}
               placedBets={placedBets}
+              bookmaker={bookmaker}
             />
           ))}
         </div>
@@ -277,9 +305,10 @@ interface ValueBetRowProps {
   bankroll: number;
   kellyFraction: number;
   maxStakePct: number;
-  onPlaceBet: (prediction: Prediction, bet: ValueBet) => Promise<string | null>;
+  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string) => Promise<string | null>;
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
   placedBets: Bet[];
+  bookmaker: string;
 }
 
 function ValueBetRow({
@@ -292,6 +321,7 @@ function ValueBetRow({
   onPlaceBet,
   onNotify,
   placedBets,
+  bookmaker,
 }: ValueBetRowProps) {
   const [placing, setPlacing] = useState(false);
 
@@ -315,7 +345,7 @@ function ValueBetRow({
   const handleBet = async () => {
     if (alreadyPlaced) return;
     setPlacing(true);
-    const err = await onPlaceBet(prediction, bet);
+    const err = await onPlaceBet(prediction, bet, bookmaker);
     setPlacing(false);
     if (err) {
       onNotify(err, "error");

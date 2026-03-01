@@ -133,16 +133,32 @@ def _get_closing_odds(closing: dict, market: str, pick: str) -> float | None:
 
 def _fetch_results_sync(league: str) -> list[dict]:
     """
-    Obtiene partidos liquidados desde PS3838 con marcadores y odds de cierre.
+    Obtiene partidos liquidados desde PS3838 con marcadores.
+    Usa fixture_snapshot.json (guardado al correr predicciones) para obtener
+    los nombres de equipos, ya que /v3/fixtures sólo devuelve eventos futuros.
+
     Devuelve lista de dicts:
       home_team, away_team, home_goals, away_goals, closing_odds (dict)
     """
+    import json
+    import os
     from trading_deportivo.odds import _ps3838_request
-    from trading_deportivo.team_mappings import get_ps3838_league_id, normalize_ps3838_name
+    from trading_deportivo.team_mappings import get_ps3838_league_id
 
     league_id = get_ps3838_league_id(league)
 
-    # 1. Eventos liquidados → event_id: (home_goals, away_goals)
+    # 1. Cargar snapshot: event_id → "Home vs Away" (guardado por runner al predecir)
+    snapshot_path = os.path.join(os.path.dirname(__file__), "..", "fixture_snapshot.json")
+    fixture_snapshot: dict = {}
+    try:
+        with open(snapshot_path) as f:
+            fixture_snapshot = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass  # Sin snapshot → no se podrán resolver apuestas sin nombre en caché
+
+    # 2. Eventos liquidados → event_id: (home_goals, away_goals)
+    # NOTA: respuesta real usa "leagues"[i]["events"], NO "fixtures".
+    #       status=1 → liquidado con resultado; status=2 → cancelado/void.
     try:
         settled = _ps3838_request("/v3/fixtures/settled", {
             "sportId": 29,
@@ -152,109 +168,41 @@ def _fetch_results_sync(league: str) -> list[dict]:
         print(f"[Resolver] PS3838 settled error ({league}): {e}")
         return []
 
-    if not settled or "fixtures" not in settled:
-        return []
-
     scores: dict[int, tuple[int, int]] = {}
-    for fixture in settled["fixtures"]:
-        eid = fixture.get("id")
-        if not eid:
-            continue
-        for period in fixture.get("periods", []):
-            if period.get("number") == 0 and period.get("status") == 2:
-                scores[eid] = (
-                    int(period.get("team1Score") or 0),
-                    int(period.get("team2Score") or 0),
-                )
-                break
+    if settled and "leagues" in settled:
+        for lg in settled["leagues"]:
+            for event in lg.get("events", []):
+                eid = event.get("id")
+                if not eid:
+                    continue
+                for period in event.get("periods", []):
+                    if period.get("number") == 0 and period.get("status") == 1:
+                        scores[eid] = (
+                            int(period.get("team1Score") or 0),
+                            int(period.get("team2Score") or 0),
+                        )
+                        break
 
     if not scores:
         return []
 
-    event_ids_str = ",".join(str(eid) for eid in scores)
-
-    # 2. Nombres de equipos para esos event IDs
-    try:
-        fixtures = _ps3838_request("/v3/fixtures", {
-            "sportId": 29,
-            "leagueIds": league_id,
-            "eventIds": event_ids_str,
-        })
-    except Exception as e:
-        print(f"[Resolver] PS3838 fixtures error ({league}): {e}")
-        return []
-
-    # 3. Odds de cierre para esos event IDs (best-effort)
-    closing_by_event: dict[int, dict] = {}
-    try:
-        settled_odds = _ps3838_request("/v3/odds/settled", {
-            "sportId": 29,
-            "leagueIds": league_id,
-            "oddsFormat": "Decimal",
-        })
-        if settled_odds and "leagues" in settled_odds:
-            for lg in settled_odds["leagues"]:
-                for event in lg.get("events", []):
-                    eid = event.get("id")
-                    if eid not in scores:
-                        continue
-                    co: dict = {}
-                    for period in event.get("periods", []):
-                        if period.get("number") != 0:
-                            continue
-                        # Moneyline
-                        ml = period.get("moneyline", {})
-                        if ml:
-                            co["home"] = ml.get("home")
-                            co["draw"] = ml.get("draw")
-                            co["away"] = ml.get("away")
-                            h, d, a = ml.get("home"), ml.get("draw"), ml.get("away")
-                            if h and d:
-                                co["dc_1X"] = round(1 / (1/h + 1/d), 4)
-                            if d and a:
-                                co["dc_X2"] = round(1 / (1/d + 1/a), 4)
-                            if h and a:
-                                co["dc_12"] = round(1 / (1/h + 1/a), 4)
-                        # Spreads (AH)
-                        for spread in period.get("spreads", []):
-                            hdp = spread.get("hdp")
-                            if hdp is not None:
-                                if spread.get("home"):
-                                    co[f"ah_home_{hdp}"] = spread["home"]
-                                if spread.get("away"):
-                                    co[f"ah_away_{hdp}"] = spread["away"]
-                        # Totals (O/U)
-                        for total in period.get("totals", []):
-                            pts = total.get("points")
-                            if pts is not None:
-                                if total.get("over"):
-                                    co[f"over_{pts}"] = total["over"]
-                                if total.get("under"):
-                                    co[f"under_{pts}"] = total["under"]
-                        break
-                    closing_by_event[eid] = co
-    except Exception as e:
-        print(f"[Resolver] PS3838 closing odds error ({league}): {e}")
-        # No blocking — continue without CLV
-
-    # 4. Combinar todo
+    # 3. Combinar scores con nombres del snapshot
     results = []
-    if fixtures and "league" in fixtures:
-        for league_data in fixtures["league"]:
-            for event in league_data.get("events", []):
-                eid = event.get("id")
-                if eid not in scores:
-                    continue
-                home = normalize_ps3838_name(event.get("home", ""), league)
-                away = normalize_ps3838_name(event.get("away", ""), league)
-                home_goals, away_goals = scores[eid]
-                results.append({
-                    "home_team": home,
-                    "away_team": away,
-                    "home_goals": home_goals,
-                    "away_goals": away_goals,
-                    "closing_odds": closing_by_event.get(eid, {}),
-                })
+    for eid, (home_goals, away_goals) in scores.items():
+        match_key = fixture_snapshot.get(str(eid))
+        if match_key is None:
+            continue  # Evento no está en el snapshot (anterior al primer run)
+        parts = match_key.split(" vs ", 1)
+        if len(parts) != 2:
+            continue
+        home, away = parts
+        results.append({
+            "home_team": home,
+            "away_team": away,
+            "home_goals": home_goals,
+            "away_goals": away_goals,
+            "closing_odds": {},  # CLV no disponible sin endpoint de odds settled
+        })
 
     return results
 
@@ -268,7 +216,9 @@ async def auto_resolve_pending_bets() -> dict:
     odds de cierre disponibles.
     """
     async with async_session() as session:
-        result = await session.execute(select(Bet).where(Bet.result.is_(None)))
+        result = await session.execute(
+            select(Bet).where(Bet.result.is_(None), Bet.source == "Modelo")
+        )
         pending = list(result.scalars().all())
 
     if not pending:
@@ -282,8 +232,10 @@ async def auto_resolve_pending_bets() -> dict:
 
     resolved = skipped = errors = 0
 
+    SUPPORTED_LEAGUES = {"EPL", "La_Liga", "Bundesliga", "Serie_A", "Ligue_1"}
+
     for league, bets in by_league.items():
-        if not league:
+        if not league or league not in SUPPORTED_LEAGUES:
             skipped += len(bets)
             continue
 

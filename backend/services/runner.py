@@ -84,6 +84,26 @@ async def run_predictions_with_id(run_id: str, leagues: list[str]):
         active_runs[run_id]["status"] = "completed"
 
 
+def _save_fixture_snapshot(odds_dict: dict):
+    """Persist event_id → 'Home vs Away' mapping so the resolver can look up
+    team names for settled fixtures (PS3838 /v3/fixtures/settled has no names)."""
+    import os
+    snapshot_path = os.path.join(os.path.dirname(__file__), "..", "fixture_snapshot.json")
+    try:
+        try:
+            with open(snapshot_path) as f:
+                snapshot = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            snapshot = {}
+        for match_key, data in odds_dict.items():
+            if "_event_id" in data:
+                snapshot[str(data["_event_id"])] = match_key
+        with open(snapshot_path, "w") as f:
+            json.dump(snapshot, f)
+    except Exception as e:
+        print(f"[Runner] Warning: no se pudo guardar fixture snapshot: {e}")
+
+
 async def _run_single_league(run_id: str, league: str):
     """Run predictions for a single league."""
     db_run_id = f"{run_id}_{league}"
@@ -98,6 +118,7 @@ async def _run_single_league(run_id: str, league: str):
             matches, odds_dict, status = fetch_ps3838_odds(league)
             if matches is None:
                 raise RuntimeError(f"No odds available: {status}")
+            _save_fixture_snapshot(odds_dict)
             df_pred = predict_matchday(matches, model, odds=odds_dict)
             return model, df_pred
 

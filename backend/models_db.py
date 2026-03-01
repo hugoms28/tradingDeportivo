@@ -62,6 +62,7 @@ class Bet(Base):
     closing_odds = Column(Float, nullable=True)   # Odd de cierre PS3838
     clv = Column(Float, nullable=True)            # CLV% = (entry/closing - 1)*100
     match_starts_at = Column(Text, nullable=True)  # ISO datetime from PS3838
+    bookmaker = Column(Text, nullable=True)         # Casa de apuestas
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime)
 

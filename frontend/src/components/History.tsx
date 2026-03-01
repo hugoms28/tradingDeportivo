@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import type { Bet } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { SOURCES } from "@/lib/constants";
+import { SOURCES, BOOKMAKERS, BOOKMAKER_COLORS } from "@/lib/constants";
 
 const LEAGUE_LABELS: Record<string, string> = {
   EPL: "Premier League",
@@ -59,10 +59,9 @@ function getWeekIndex(date: Date, weeks: Array<{ start: Date; end: Date }>): num
 
 interface Props {
   bets: Bet[];
-  onResolveBet: (id: number, result: "win" | "half_win" | "loss" | "half_loss" | "void") => void;
 }
 
-export function History({ bets, onResolveBet }: Props) {
+export function History({ bets }: Props) {
   const now = new Date();
   const currentKey = yearMonthKey(now);
 
@@ -70,6 +69,7 @@ export function History({ bets, onResolveBet }: Props) {
   const [selectedWeek, setSelectedWeek] = useState<number>(0); // 0 = mes completo
   const [selectedLeague, setSelectedLeague] = useState<string>("Todas");
   const [selectedSource, setSelectedSource] = useState<string>("Todas");
+  const [selectedBookmaker, setSelectedBookmaker] = useState<string>("Todas");
 
   // Meses disponibles: los que tienen apuestas + el mes actual
   const availableMonths = useMemo(() => {
@@ -91,16 +91,6 @@ export function History({ bets, onResolveBet }: Props) {
     setSelectedWeek(0);
   };
 
-  // Ligas presentes en el mes seleccionado
-  const leagues = useMemo(() => {
-    const seen = new Set<string>();
-    for (const b of bets) {
-      if (yearMonthKey(new Date(b.timestamp)) === selectedMonth && b.league)
-        seen.add(b.league);
-    }
-    return Array.from(seen).sort();
-  }, [bets, selectedMonth]);
-
   // Apuestas filtradas por todos los criterios
   const filtered = useMemo(() => {
     return bets.filter((b) => {
@@ -109,9 +99,12 @@ export function History({ bets, onResolveBet }: Props) {
       if (selectedWeek !== 0 && getWeekIndex(d, weeks) !== selectedWeek) return false;
       if (selectedLeague !== "Todas" && b.league !== selectedLeague) return false;
       if (selectedSource !== "Todas" && b.source !== selectedSource) return false;
+      if (selectedBookmaker !== "Todas" && b.bookmaker !== selectedBookmaker) return false;
       return true;
     });
-  }, [bets, selectedMonth, selectedWeek, selectedLeague, selectedSource, weeks]);
+  }, [bets, selectedMonth, selectedWeek, selectedLeague, selectedSource, selectedBookmaker, weeks]);
+
+  const MODEL_LEAGUES = Object.keys(LEAGUE_LABELS);
 
   const sorted = useMemo(
     () => [...filtered].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
@@ -213,23 +206,21 @@ export function History({ bets, onResolveBet }: Props) {
         </div>
 
         {/* Filtro por liga */}
-        {leagues.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            {["Todas", ...leagues].map((league) => (
-              <button
-                key={league}
-                onClick={() => setSelectedLeague(league)}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition ${
-                  selectedLeague === league
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
-                }`}
-              >
-                {league === "Todas" ? "Todas" : (LEAGUE_LABELS[league] ?? league)}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-1 flex-wrap">
+          {["Todas", ...MODEL_LEAGUES].map((league) => (
+            <button
+              key={league}
+              onClick={() => setSelectedLeague(league)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition ${
+                selectedLeague === league
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+              }`}
+            >
+              {league === "Todas" ? "Todas" : LEAGUE_LABELS[league]}
+            </button>
+          ))}
+        </div>
 
         {/* Filtro por fuente */}
         <div className="flex items-center gap-1 flex-wrap">
@@ -246,6 +237,29 @@ export function History({ bets, onResolveBet }: Props) {
               {source}
             </button>
           ))}
+        </div>
+
+        {/* Filtro por casa de apuestas */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {["Todas", ...BOOKMAKERS].map((bm) => {
+            const colors = BOOKMAKER_COLORS[bm];
+            const isActive = selectedBookmaker === bm;
+            return (
+              <button
+                key={bm}
+                onClick={() => setSelectedBookmaker(bm)}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition ${
+                  isActive
+                    ? colors
+                      ? `${colors.bg} ${colors.text}`
+                      : "bg-slate-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                }`}
+              >
+                {bm}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -300,7 +314,7 @@ export function History({ bets, onResolveBet }: Props) {
                       >
                         {formatCurrency(bet.pnl)}
                       </div>
-                      <div className="flex items-center justify-end gap-2 mt-0.5">
+                      <div className="flex items-center justify-end gap-2 mt-0.5 flex-wrap">
                         <div
                           className={`text-[10px] font-semibold uppercase ${
                             bet.result === "win"
@@ -336,6 +350,18 @@ export function History({ bets, onResolveBet }: Props) {
                             CLV {bet.clv >= 0 ? "+" : ""}{bet.clv.toFixed(1)}%
                           </span>
                         )}
+                        {bet.bookmaker && (() => {
+                          const c = BOOKMAKER_COLORS[bet.bookmaker];
+                          return c ? (
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
+                              {bet.bookmaker}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                              {bet.bookmaker}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </>
                   ) : (
@@ -343,43 +369,18 @@ export function History({ bets, onResolveBet }: Props) {
                       <span className="text-[10px] font-semibold text-amber-500 uppercase">
                         Pendiente
                       </span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => onResolveBet(bet.id, "win")}
-                          className="border border-emerald-600 text-emerald-400 rounded px-2.5 py-1 text-[10px] hover:bg-emerald-950 transition"
-                          title="Ganada"
-                        >
-                          G
-                        </button>
-                        <button
-                          onClick={() => onResolveBet(bet.id, "half_win")}
-                          className="border border-emerald-800 text-emerald-600 rounded px-2 py-1 text-[10px] hover:bg-emerald-950 transition"
-                          title="½ Ganada"
-                        >
-                          ½G
-                        </button>
-                        <button
-                          onClick={() => onResolveBet(bet.id, "half_loss")}
-                          className="border border-red-800 text-red-600 rounded px-2 py-1 text-[10px] hover:bg-red-950 transition"
-                          title="½ Perdida"
-                        >
-                          ½P
-                        </button>
-                        <button
-                          onClick={() => onResolveBet(bet.id, "loss")}
-                          className="border border-red-600 text-red-400 rounded px-2.5 py-1 text-[10px] hover:bg-red-950 transition"
-                          title="Perdida"
-                        >
-                          P
-                        </button>
-                        <button
-                          onClick={() => onResolveBet(bet.id, "void")}
-                          className="border border-slate-700 text-slate-500 rounded px-2 py-1 text-[10px] hover:bg-slate-800 transition"
-                          title="Nula"
-                        >
-                          N
-                        </button>
-                      </div>
+                      {bet.bookmaker && (() => {
+                        const c = BOOKMAKER_COLORS[bet.bookmaker];
+                        return c ? (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${c.bg} ${c.text}`}>
+                            {bet.bookmaker}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                            {bet.bookmaker}
+                          </span>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

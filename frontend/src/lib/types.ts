@@ -15,6 +15,7 @@ export interface Bet {
   closingOdds: number | null;
   clv: number | null;
   matchStartsAt: string | null;
+  bookmaker: string | null;
   timestamp: string;
   resolvedAt: string | null;
   league?: string;
@@ -59,6 +60,7 @@ export interface BetFormData {
   market: string;
   pick: string;
   league: string;
+  bookmaker: string;
 }
 
 export type TrafficLight = "green" | "orange" | "red";

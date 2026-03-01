@@ -71,6 +71,7 @@ export interface ApiBet {
   closingOdds: number | null;
   clv: number | null;
   matchStartsAt: string | null;
+  bookmaker: string | null;
   timestamp: string;
   resolvedAt: string | null;
 }
@@ -186,6 +187,7 @@ export async function createBet(data: {
   edge?: number | null;
   prediction_id?: number | null;
   match_starts_at?: string | null;
+  bookmaker?: string | null;
 }) {
   return fetchJSON<ApiBet>("/bets", {
     method: "POST",
@@ -198,6 +200,13 @@ export async function triggerAutoResolve() {
     "/bets/auto-resolve",
     { method: "POST" },
   );
+}
+
+export async function updateBet(id: number, data: { bookmaker?: string }) {
+  return fetchJSON<ApiBet>(`/bets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function resolveBet(id: number, result: "win" | "half_win" | "loss" | "half_loss" | "void") {

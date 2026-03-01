@@ -44,6 +44,7 @@ async def init_db():
             "ALTER TABLE bets ADD COLUMN closing_odds REAL",
             "ALTER TABLE bets ADD COLUMN clv REAL",
             "ALTER TABLE bets ADD COLUMN sport TEXT",
+            "ALTER TABLE bets ADD COLUMN bookmaker TEXT",
         ]:
             try:
                 await conn.execute(text(stmt))

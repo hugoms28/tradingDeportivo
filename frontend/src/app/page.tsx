@@ -172,7 +172,7 @@ export default function Page() {
           />
         )}
         {view === "history" && (
-          <History bets={store.state.bets} onResolveBet={store.resolveBet} />
+          <History bets={store.state.bets} />
         )}
         {view === "training" && <ModelStatus onNotify={notify} />}
         {view === "settings" && (

@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import type { BetFormData, DisciplineSettings, LockStatus } from "@/lib/types";
 import { calcKellyStake, calcEdge } from "@/lib/calculations";
-import { SOURCES, MARKETS, LEAGUES, SPORTS } from "@/lib/constants";
+import { SOURCES, MARKETS, LEAGUES, SPORTS, BOOKMAKERS, BOOKMAKER_COLORS } from "@/lib/constants";
 
 interface Props {
   bankroll: number;
@@ -29,6 +29,7 @@ export function NewBetForm({ bankroll, settings, lockStatus, onPlaceBet, onNotif
     market: "1X2",
     pick: "",
     league: "",
+    bookmaker: "",
   });
 
   const kelly = useMemo(() => {
@@ -49,7 +50,7 @@ export function NewBetForm({ bankroll, settings, lockStatus, onPlaceBet, onNotif
     const odds = parseFloat(form.odds);
     const stake = form.source === "Modelo" && kelly ? kelly.stake : parseFloat(form.stake);
     onNotify(`Apuesta registrada: ${stake.toFixed(2)}€ @ ${odds}`, "success");
-    setForm({ event: "", source: "Modelo", tipsterName: "", sport: "", modelProb: "", odds: "", stake: "", market: "1X2", pick: "", league: "" });
+    setForm({ event: "", source: "Modelo", tipsterName: "", sport: "", modelProb: "", odds: "", stake: "", market: "1X2", pick: "", league: "", bookmaker: "" });
     onNavigate("dashboard");
   };
 
@@ -218,6 +219,33 @@ export function NewBetForm({ bankroll, settings, lockStatus, onPlaceBet, onNotif
             </div>
           </div>
         )}
+
+        {/* Bookmaker */}
+        <div>
+          <label className="text-[11px] text-slate-500 uppercase tracking-widest mb-1.5 block font-semibold">
+            Casa de Apuestas
+          </label>
+          <div className="flex gap-2 flex-wrap">
+            {BOOKMAKERS.map((bm) => {
+              const c = BOOKMAKER_COLORS[bm];
+              const isActive = form.bookmaker === bm;
+              return (
+                <button
+                  key={bm}
+                  type="button"
+                  onClick={() => set({ bookmaker: isActive ? "" : bm })}
+                  className={`text-[12px] font-semibold px-3 py-1.5 rounded-lg transition border ${
+                    isActive
+                      ? `${c.activeBg} ${c.text} border-transparent`
+                      : `bg-transparent ${c.text} border-current opacity-60 hover:opacity-100`
+                  }`}
+                >
+                  {bm}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Submit */}
         <button

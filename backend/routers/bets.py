@@ -30,6 +30,12 @@ class BetCreate(BaseModel):
     edge: float | None = None
     prediction_id: int | None = None
     match_starts_at: str | None = None
+    bookmaker: str | None = None
+
+
+class BetUpdate(BaseModel):
+    bookmaker: str | None = None
+    tipster_name: str | None = None
 
 
 class BetResolve(BaseModel):
@@ -82,6 +88,7 @@ async def create_bet(
         stake=data.stake,
         edge=data.edge,
         match_starts_at=data.match_starts_at,
+        bookmaker=data.bookmaker,
     )
     session.add(bet)
 
@@ -144,6 +151,25 @@ async def resolve_bet(
         if peak_row and new_bankroll > float(peak_row.value):
             peak_row.value = str(new_bankroll)
 
+    await session.commit()
+    await session.refresh(bet)
+    return _bet_to_dict(bet)
+
+
+@router.patch("/bets/{bet_id}")
+async def update_bet(
+    bet_id: int,
+    data: BetUpdate,
+    session: AsyncSession = Depends(get_session),
+):
+    """Update editable bet fields (bookmaker, etc)."""
+    bet = await session.get(Bet, bet_id)
+    if not bet:
+        return {"error": "Bet not found"}
+    if data.bookmaker is not None:
+        bet.bookmaker = data.bookmaker
+    if data.tipster_name is not None:
+        bet.tipster_name = data.tipster_name
     await session.commit()
     await session.refresh(bet)
     return _bet_to_dict(bet)
@@ -267,6 +293,7 @@ def _bet_to_dict(b: Bet) -> dict:
         "closingOdds": b.closing_odds,
         "clv": b.clv,
         "matchStartsAt": b.match_starts_at,
+        "bookmaker": b.bookmaker,
         "timestamp": b.created_at.isoformat() if b.created_at else None,
         "resolvedAt": b.resolved_at.isoformat() if b.resolved_at else None,
     }

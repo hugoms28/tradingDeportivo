@@ -56,6 +56,7 @@ function apiBetToBet(b: ApiBet): Bet {
     closingOdds: b.closingOdds ?? null,
     clv: b.clv ?? null,
     matchStartsAt: b.matchStartsAt ?? null,
+    bookmaker: b.bookmaker ?? null,
     timestamp: b.timestamp,
     resolvedAt: b.resolvedAt,
     league: b.league || undefined,
@@ -213,6 +214,7 @@ export function useBettingStore() {
             model_prob: prob ?? null,
             stake,
             edge,
+            bookmaker: form.bookmaker || null,
           });
           await refreshFromApi();
           return null;
@@ -238,6 +240,7 @@ export function useBettingStore() {
           closingOdds: null,
           clv: null,
           matchStartsAt: null,
+          bookmaker: null,
           timestamp: new Date().toISOString(),
           resolvedAt: null,
           league: form.league || undefined,
@@ -250,7 +253,7 @@ export function useBettingStore() {
   );
 
   const placeBetFromPrediction = useCallback(
-    async (prediction: Prediction, valueBet: ValueBet): Promise<string | null> => {
+    async (prediction: Prediction, valueBet: ValueBet, bookmaker = ""): Promise<string | null> => {
       if (lockStatus.locked) return `Sistema BLOQUEADO: ${lockStatus.reason}`;
       if (valueBet.prob == null || valueBet.odds == null) return "Odds o probabilidad no disponibles";
 
@@ -282,6 +285,7 @@ export function useBettingStore() {
           edge: valueBet.edge,
           prediction_id: prediction.id,
           match_starts_at: prediction.starts_at ?? null,
+          bookmaker: bookmaker || null,
         });
         await refreshFromApi();
         return null;
