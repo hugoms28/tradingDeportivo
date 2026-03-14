@@ -61,6 +61,9 @@ export interface BetFormData {
   pick: string;
   league: string;
   bookmaker: string;
+  ps3838EventId?: number | null;  // Populated after PS3838 event search
+  ps3838SportId?: number;         // sportId PS3838 del evento seleccionado
+  ps3838LeagueId?: number;        // leagueId PS3838 del evento seleccionado
 }
 
 export type TrafficLight = "green" | "orange" | "red";

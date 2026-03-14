@@ -15,7 +15,7 @@ export function EquityChart({ bets, initialBankroll }: Props) {
   if (curve.length < 2) {
     return (
       <div className="h-[200px] flex items-center justify-center text-slate-500 text-sm">
-        Sin datos suficientes para gr&aacute;fico
+        Sin datos suficientes para grafico
       </div>
     );
   }

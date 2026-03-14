@@ -63,6 +63,7 @@ class Bet(Base):
     clv = Column(Float, nullable=True)            # CLV% = (entry/closing - 1)*100
     match_starts_at = Column(Text, nullable=True)  # ISO datetime from PS3838
     bookmaker = Column(Text, nullable=True)         # Casa de apuestas
+    ps3838_bet_id = Column(Text, nullable=True)     # ID de apuesta en PS3838 API (si se colocó vía API)
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime)
 

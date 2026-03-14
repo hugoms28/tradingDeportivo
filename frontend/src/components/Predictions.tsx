@@ -19,7 +19,7 @@ interface Props {
   bankroll: number;
   kellyFraction: number;
   maxStakePct: number;
-  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string) => Promise<string | null>;
+  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string, customStake?: number) => Promise<string | null>;
   placedBets: Bet[];
 }
 
@@ -220,7 +220,7 @@ interface MatchCardProps {
   bankroll: number;
   kellyFraction: number;
   maxStakePct: number;
-  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string) => Promise<string | null>;
+  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string, customStake?: number) => Promise<string | null>;
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
   placedBets: Bet[];
   bookmaker: string;
@@ -305,7 +305,7 @@ interface ValueBetRowProps {
   bankroll: number;
   kellyFraction: number;
   maxStakePct: number;
-  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string) => Promise<string | null>;
+  onPlaceBet: (prediction: Prediction, bet: ValueBet, bookmaker: string, customStake?: number) => Promise<string | null>;
   onNotify: (msg: string, type: "success" | "error" | "info") => void;
   placedBets: Bet[];
   bookmaker: string;
@@ -324,6 +324,7 @@ function ValueBetRow({
   bookmaker,
 }: ValueBetRowProps) {
   const [placing, setPlacing] = useState(false);
+  const [stakeInput, setStakeInput] = useState("");
 
   // Check against the store's bets so the state persists across tab switches
   const event = `${prediction.home_team} vs ${prediction.away_team}`;
@@ -335,23 +336,26 @@ function ValueBetRow({
   const probStr = bet.prob != null ? `${(bet.prob * 100).toFixed(1)}%` : "—";
   const oddsStr = bet.odds != null ? bet.odds.toFixed(2) : "—";
 
-  const stake =
+  const kellyStake =
     bet.prob != null && bet.odds != null
       ? Math.round(
           calcKellyStake(bankroll, bet.prob, bet.odds, kellyFraction, maxStakePct) * 100,
         ) / 100
       : 0;
 
+  const customStakeVal = stakeInput !== "" ? parseFloat(stakeInput) : null;
+  const effectiveStake = customStakeVal != null && customStakeVal > 0 ? customStakeVal : kellyStake;
+
   const handleBet = async () => {
     if (alreadyPlaced) return;
     setPlacing(true);
-    const err = await onPlaceBet(prediction, bet, bookmaker);
+    const err = await onPlaceBet(prediction, bet, bookmaker, customStakeVal ?? undefined);
     setPlacing(false);
     if (err) {
       onNotify(err, "error");
     } else {
       onNotify(
-        `Apuesta registrada: ${bet.label} @ ${oddsStr} · ${stake.toFixed(2)}€`,
+        `Apuesta registrada: ${bet.label} @ ${oddsStr} · ${effectiveStake.toFixed(2)}€`,
         "success",
       );
     }
@@ -386,20 +390,29 @@ function ValueBetRow({
         </div>
       </div>
 
-      {/* Bottom row: stake + bet button */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/60">
-        <span className="text-slate-500">
-          Stake recomendado:{" "}
-          <span className={`font-bold ${isTip ? "text-slate-300" : "text-emerald-300"}`}>
-            {stake > 0 ? `${stake.toFixed(2)}€` : "—"}
+      {/* Bottom row: stake editable + bet button */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/60 gap-3">
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-slate-500 text-[11px] whitespace-nowrap">
+            Kelly: <span className={`font-bold ${isTip ? "text-slate-300" : "text-emerald-300"}`}>
+              {kellyStake > 0 ? `${kellyStake.toFixed(2)}€` : "—"}
+            </span>
           </span>
-          <span className="text-slate-600 ml-1">
-            ({(kellyFraction * 100).toFixed(0)}% Kelly)
-          </span>
-        </span>
+          <input
+            type="number"
+            min="0.01"
+            step="0.5"
+            placeholder={kellyStake > 0 ? kellyStake.toFixed(2) : "Stake"}
+            value={stakeInput}
+            onChange={(e) => setStakeInput(e.target.value)}
+            disabled={alreadyPlaced}
+            className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-[11px] text-slate-200 outline-none focus:border-emerald-600 disabled:opacity-40"
+          />
+          <span className="text-slate-600 text-[10px]">€</span>
+        </div>
         <button
           onClick={handleBet}
-          disabled={placing || stake <= 0 || alreadyPlaced}
+          disabled={placing || effectiveStake <= 0 || alreadyPlaced}
           className={`px-3 py-1 rounded-lg text-[11px] font-bold transition cursor-not-allowed ${
             alreadyPlaced
               ? "bg-slate-700 text-slate-400 opacity-60"
@@ -410,7 +423,11 @@ function ValueBetRow({
                   : "bg-emerald-700 hover:bg-emerald-600 text-white cursor-pointer"
           }`}
         >
-          {alreadyPlaced ? "✓ Apuesta hecha" : placing ? "Registrando..." : "Hacer apuesta"}
+          {alreadyPlaced
+            ? "✓ Hecha"
+            : placing
+              ? bookmaker === "PS3838" ? "Colocando..." : "Registrando..."
+              : bookmaker === "PS3838" ? "Colocar en PS3838" : "Hacer apuesta"}
         </button>
       </div>
     </div>

@@ -304,6 +304,76 @@ export async function updateSchedulerConfig(config: {
   );
 }
 
+// ─── PS3838 ────────────────────────────────────────────────────────────────
+
+export interface Ps3838Lines {
+  event_id: number;
+  sport_id?: number;
+  line_id: number;
+  moneyline: { home: number; draw: number; away: number } | null;
+  spreads: Array<{ altLineId: number; hdp: number; home: number; away: number }>;
+  totals: Array<{ altLineId: number; points: number; over: number; under: number }>;
+  is_live?: boolean;
+}
+
+export interface Ps3838EventResult {
+  event_id: number;
+  home: string;
+  away: string;
+  league: string;
+  league_id?: number;
+  starts: string;
+  sport_id: number;
+  sport_name?: string;
+  status?: string;
+}
+
+export async function getPs3838Sports() {
+  return fetchJSON<Array<{ name: string; sport_id: number }>>("/ps3838/sports");
+}
+
+export async function searchPs3838Events(q: string, sportId?: number) {
+  const qs = sportId != null ? `&sport_id=${sportId}` : "";
+  return fetchJSON<Ps3838EventResult[] | { error: string }>(
+    `/ps3838/events?q=${encodeURIComponent(q)}${qs}`,
+  );
+}
+
+export async function getPs3838Lines(eventId: number, sportId: number) {
+  return fetchJSON<Ps3838Lines | { error: string }>(
+    `/ps3838/lines?event_id=${eventId}&sport_id=${sportId}`,
+  );
+}
+
+export async function searchPs3838Event(league: string, home: string, away: string) {
+  return fetchJSON<Ps3838Lines | { error: string }>(
+    `/ps3838/search?league=${encodeURIComponent(league)}&home=${encodeURIComponent(home)}&away=${encodeURIComponent(away)}`,
+  );
+}
+
+export async function placePs3838Bet(data: {
+  prediction_id?: number | null;
+  event_id?: number | null;
+  sport_id?: number;
+  league_id?: number | null;
+  event: string;
+  league: string;
+  market: string;
+  label: string;
+  odds: number;
+  stake: number;
+  prob?: number | null;
+  edge?: number | null;
+  source?: string;
+  tipster_name?: string;
+  bookmaker?: string;
+}) {
+  return fetchJSON<ApiBet | { error: string }>("/bets/place-ps3838", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 // ─── Health ────────────────────────────────────────────────────────────────
 
 export async function checkHealth() {

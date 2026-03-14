@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import init_db
-from routers import predictions, bets, models, settings
+from routers import predictions, bets, models, settings, ps3838
 from services.scheduler import router as scheduler_router
 
 
@@ -43,6 +43,7 @@ app.include_router(bets.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(scheduler_router, prefix="/api")
+app.include_router(ps3838.router, prefix="/api")
 
 
 @app.get("/api/health")

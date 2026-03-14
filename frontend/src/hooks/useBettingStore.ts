@@ -23,6 +23,7 @@ import {
   getSettings,
   updateSettings as apiUpdateSettings,
   triggerAutoResolve,
+  placePs3838Bet,
   type ApiBet,
   type Prediction,
   type ValueBet,
@@ -178,7 +179,12 @@ export function useBettingStore() {
       const odds = parseFloat(form.odds);
       let stake: number;
 
-      if (form.source === "Modelo") {
+      // Si hay stake manual explícito (bloque PS3838 o fuente no-Modelo), usarlo directamente
+      const manualStake = parseFloat(form.stake);
+      const hasManualStake = manualStake > 0;
+      const isPs3838Manual = !!(form.bookmaker === "PS3838" && form.ps3838EventId && hasManualStake);
+
+      if (form.source === "Modelo" && !isPs3838Manual) {
         const prob = parseFloat(form.modelProb) / 100;
         if (!prob || prob <= 0 || prob >= 1) return "Probabilidad inválida";
         const edge = calcEdge(prob, odds);
@@ -187,7 +193,7 @@ export function useBettingStore() {
           calcKellyStake(state.bankroll, prob, odds, settings.kellyFraction, settings.maxStakePct) * 100,
         ) / 100;
       } else {
-        stake = parseFloat(form.stake);
+        stake = hasManualStake ? manualStake : 0;
       }
 
       if (!stake || stake <= 0) return "Stake inválido";
@@ -200,22 +206,44 @@ export function useBettingStore() {
       const edge = prob ? calcEdge(prob, odds) : null;
 
       if (apiAvailable) {
-        // Create bet via API
         try {
-          await createBet({
-            event: form.event,
-            league: form.league || "",
-            source: form.source,
-            tipster_name: form.tipsterName || "",
-            sport: form.sport || null,
-            market: form.market,
-            pick: form.pick,
-            odds,
-            model_prob: prob ?? null,
-            stake,
-            edge,
-            bookmaker: form.bookmaker || null,
-          });
+          // Si bookmaker=PS3838 y tenemos event_id → colocar vía API de PS3838
+          if (form.bookmaker === "PS3838" && form.ps3838EventId) {
+            const ps3838Stake =
+              form.stake && parseFloat(form.stake) > 0 ? parseFloat(form.stake) : stake;
+            const result = await placePs3838Bet({
+              event_id: form.ps3838EventId,
+              event: form.event,
+              league: form.league || "",
+              market: form.market,
+              label: form.pick,
+              odds,
+              stake: ps3838Stake,
+              prob: prob ?? null,
+              edge: edge ?? null,
+              source: form.source,
+              tipster_name: form.tipsterName || "",
+              bookmaker: "PS3838",
+              sport_id: form.ps3838SportId ?? 29,
+              league_id: form.ps3838LeagueId ?? null,
+            });
+            if ("error" in result) return result.error;
+          } else {
+            await createBet({
+              event: form.event,
+              league: form.league || "",
+              source: form.source,
+              tipster_name: form.tipsterName || "",
+              sport: form.sport || null,
+              market: form.market,
+              pick: form.pick,
+              odds,
+              model_prob: prob ?? null,
+              stake,
+              edge,
+              bookmaker: form.bookmaker || null,
+            });
+          }
           await refreshFromApi();
           return null;
         } catch (e) {
@@ -253,11 +281,16 @@ export function useBettingStore() {
   );
 
   const placeBetFromPrediction = useCallback(
-    async (prediction: Prediction, valueBet: ValueBet, bookmaker = ""): Promise<string | null> => {
+    async (
+      prediction: Prediction,
+      valueBet: ValueBet,
+      bookmaker = "",
+      customStake?: number,
+    ): Promise<string | null> => {
       if (lockStatus.locked) return `Sistema BLOQUEADO: ${lockStatus.reason}`;
       if (valueBet.prob == null || valueBet.odds == null) return "Odds o probabilidad no disponibles";
 
-      const stake = Math.round(
+      const kellyStake = Math.round(
         calcKellyStake(
           state.bankroll,
           valueBet.prob,
@@ -267,14 +300,44 @@ export function useBettingStore() {
         ) * 100,
       ) / 100;
 
-      if (stake <= 0) return "Stake calculado = 0 (Kelly negativo o edge insuficiente)";
+      const stake = customStake != null && customStake > 0 ? customStake : kellyStake;
+      if (stake <= 0) return "Stake = 0 (Kelly negativo o edge insuficiente)";
       if (stake > state.bankroll) return "Stake superior al bankroll disponible";
 
       if (!apiAvailable) return "API no disponible";
 
+      const event = `${prediction.home_team} vs ${prediction.away_team}`;
+
+      // Si la casa es PS3838, colocar vía API
+      if (bookmaker === "PS3838") {
+        const eventId = (prediction.raw as Record<string, unknown>)?._event_id as number | null;
+        try {
+          const result = await placePs3838Bet({
+            prediction_id: prediction.id,
+            event_id: eventId ?? null,
+            event,
+            league: prediction.league,
+            market: valueBet.market,
+            label: valueBet.label,
+            odds: valueBet.odds,
+            stake,
+            prob: valueBet.prob,
+            edge: valueBet.edge,
+            source: "Modelo",
+            bookmaker: "PS3838",
+          });
+          if ("error" in result) return result.error;
+          await refreshFromApi();
+          return null;
+        } catch (e) {
+          return `Error PS3838: ${e}`;
+        }
+      }
+
+      // Registro local (sin colocación en PS3838)
       try {
         await createBet({
-          event: `${prediction.home_team} vs ${prediction.away_team}`,
+          event,
           league: prediction.league,
           source: "Modelo",
           market: valueBet.market,
